@@ -1,0 +1,22 @@
+[
+    {
+        "id": "doc_001",
+        "title": "Battery Safety Protocol - Thermal Runaway",
+        "content": "In case of thermal runaway detection (Code E-99), immediate isolation of the battery pack is required. Do not attempt to cool with water unless explicitly authorized by the specific chemistry safety sheet. Evacuate the area to a radius of 50 meters. Use Class D fire extinguishers for lithium metal, but standard ABC extinguishers may be used for managing surrounding fires."
+    },
+    {
+        "id": "doc_002",
+        "title": "Maintenance: voltage balancing",
+        "content": "Cell balancing should be performed when voltage delta exceeds 50mV. Passive balancing is automatically triggered by the BMS during charging cycles between 80% and 100% SOC. Active balancing requires the service tool connected via CAN bus. Ensure pack temperature is below 45°C before initiating active balancing."
+    },
+    {
+        "id": "doc_003",
+        "title": "Error Code 0x45 (E69) - Cell Overvoltage",
+        "content": "Error 0x45 indicates a cell overvoltage condition (>4.25V). Causes: 1. Charger malfunction. 2. BMS sensing wire disconnection. 3. Internal cell impedance mismatch. Troubleshooting: Check voltage sensing lines for continuity. Verify charger CC/CV profile settings."
+    },
+    {
+        "id": "doc_004",
+        "title": "Gemini 3 Integration Guide for BMS",
+        "content": "The BatteryForge AI system uses Gemini 3 models to predict aging. Ensure that data upload frequency does not exceed 1Hz to maintain API quota limits. For real-time monitoring, use the 'Nano Banana Pro' edge deployment pattern locally on the BMS hardware."
+    }
+]

@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+python-dotenv
+google-genai
+google-generativeai
+pydantic
+pytest
+httpx
+numpy
+chromadb
+pypdf
+matplotlib
+pandas
