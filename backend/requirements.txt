@@ -3,6 +3,7 @@ uvicorn
 python-dotenv
 google-genai
 google-generativeai
+google-adk
 pydantic
 pytest
 httpx

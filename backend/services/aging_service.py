@@ -3,16 +3,23 @@ import numpy as np
 import io
 
 class AgingService:
-    async def generate_aging_curve(self, current_capacity_ah: float = None, nominal_capacity_ah: float = 3.0):
+    async def generate_aging_curve(self, current_capacity_ah: float = None, nominal_capacity_ah: float = 3.0, current_cycle: int = None):
         """
-        Simulates/Projects a capacity degradation curve based on the CURRENT measured capacity.
+        Simulates/Projects a capacity degradation curve based on the CURRENT measured capacity or cycle count.
         Uses Gemini 3 to generate the physics-based trajectory.
         """
         from services.gemini_service import gemini_service
         import numpy as np
 
         # 1. Determine Current State
-        if current_capacity_ah is None:
+        if current_cycle is not None:
+            start_cycle = current_cycle
+            # Estimate SOH if capacity not provided
+            if current_capacity_ah is not None:
+                current_soh = (current_capacity_ah / nominal_capacity_ah) * 100.0
+            else:
+                current_soh = 100.0 - (current_cycle * 0.02) # Approx
+        elif current_capacity_ah is None:
             current_soh = 100.0
             start_cycle = 0
         else:

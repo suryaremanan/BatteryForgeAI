@@ -100,52 +100,36 @@ class ChatRequest(BaseModel):
     history: list = [] # List of {"role": "user"|"model", "parts": [...]}
     image: Optional[str] = None # Base64 data URI
     context: Optional[dict] = None # ADK Agent State (Workspace Context)
+    session_id: Optional[str] = None  # Session ID for conversation continuity
+    user_id: Optional[str] = None  # User ID for multi-user support
 
 @router.post("/chat/send")
 async def chat_endpoint(request: ChatRequest):
-    # Agentic Chat with Tools (RAG, Charging Sim, Aging Pred)
-    
-    # 1. Format history
-    formatted_history = []
-    for msg in request.history:
-        # Filter out parts that are null or complex objects for now if using stateless history,
-        # but gemini history expects specific format.
-        # For simplicity in this MVP, we assume text-only history from frontend 
-        # (images are sent mostly one-off in current turn).
-        formatted_history.append({
-            "role": "user" if msg['role'] == 'user' else "model",
-            "parts": [msg['content']]
-        })
-        
+    """
+    Agentic Chat Endpoint - Routes to multi-agent system.
+    Supports ADK-based agents with fallback to legacy gemini_service.
+    """
     try:
-        # 2. Get Agent Session (Tools enabled + Context Awareness)
-        chat = gemini_service.get_agent_chat(history=formatted_history, context=request.context)
+        # Use the new agent service
+        from services.agent_service import agent_service
         
-        # 3. Construct Message Payload
-        message_parts = [request.message]
+        result = await agent_service.chat(
+            message=request.message,
+            session_id=request.session_id or "default",
+            user_id=request.user_id or "default",
+            context=request.context,
+            history=request.history
+        )
         
-        if request.image:
-            # Parse Base64 Image
-            try:
-                # Expect format: "data:image/jpeg;base64,..."
-                header, encoded = request.image.split(",", 1)
-                mime_type = header.split(":")[1].split(";")[0]
-                import base64
-                image_data = base64.b64decode(encoded)
-                
-                # Create Blob for Gemini
-                image_blob = {"mime_type": mime_type, "data": image_data}
-                message_parts.append(image_blob)
-                print(f"Attached image: {mime_type}")
-            except Exception as img_err:
-                print(f"Image parsing failed: {img_err}")
-                # Continue without image if fail
-        
-        # 4. Send message (Gemini handles the tool execution loop internally!)
-        response = chat.send_message(message_parts)
-        return {"response": response.text}
+        return {
+            "response": result.get("response", "No response generated"),
+            "actions": result.get("actions", []),
+            "trace": result.get("trace", []),
+            "agent_mode": result.get("agent_mode", "unknown")
+        }
     except Exception as e:
         import traceback
+        import datetime
         error_msg = traceback.format_exc()
         print(f"Agent Error: {e}")
         with open("error_log.txt", "a") as f:
@@ -544,3 +528,116 @@ async def websocket_logs(websocket: WebSocket):
             await websocket.receive_text()
     except Exception:
         log_stream_service.disconnect(websocket)
+
+
+# --- AGENTIC AI ROUTES (ADK Multi-Agent System) ---
+
+class WorkflowRequest(BaseModel):
+    workflow_name: str  # 'pack_audit', 'continuous_monitor'
+    session_id: Optional[str] = None
+    parameters: Optional[dict] = None
+
+@router.post("/agent/workflow")
+async def trigger_workflow(request: WorkflowRequest):
+    """
+    Trigger a Marathon Agent workflow.
+    These are long-running autonomous tasks.
+    """
+    from services.agent_service import agent_service
+    
+    result = await agent_service.run_workflow(
+        workflow_name=request.workflow_name,
+        session_id=request.session_id or "default",
+        parameters=request.parameters
+    )
+    return result
+
+@router.get("/agent/session/{session_id}")
+async def get_agent_session(session_id: str):
+    """Get the current state of an agent session."""
+    from services.agent_service import agent_service
+    
+    state = agent_service.get_session_state(session_id)
+    return {"session_id": session_id, "state": state}
+
+@router.get("/agent/status")
+async def get_agent_status():
+    """Check if the ADK agent system is available."""
+    try:
+        from services.agent_service import agent_service
+        agent_service._initialize()
+        
+        return {
+            "status": "online",
+            "adk_available": agent_service._initialized,
+            "mode": "adk" if agent_service._initialized else "fallback",
+            "agents": [
+                "BatteryForgeCommander",
+                "DefectAnalysisAgent",
+                "ChargingOptimizationAgent",
+                "FleetCommanderAgent",
+                "SafetyGuardianAgent",
+                "PredictiveMaintenanceAgent"
+            ],
+            "workflows": [
+                "PackAuditWorkflow",
+                "ContinuousMonitorWorkflow"
+            ]
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "mode": "offline"
+        }
+
+@router.websocket("/ws/agent")
+async def agent_websocket(websocket: WebSocket):
+    """
+    WebSocket for real-time agent streaming.
+    Provides live updates on agent execution, tool calls, and responses.
+    """
+    await websocket.accept()
+    
+    try:
+        from battery_forge_agent.shared.callbacks import agent_callbacks
+        agent_callbacks.set_websocket(websocket)
+        
+        while True:
+            # Receive messages from client
+            data = await websocket.receive_json()
+            
+            # Handle incoming commands
+            if data.get("type") == "chat":
+                from services.agent_service import agent_service
+                result = await agent_service.chat(
+                    message=data.get("message", ""),
+                    session_id=data.get("session_id", "default"),
+                    context=data.get("context")
+                )
+                await websocket.send_json({
+                    "type": "response",
+                    "data": result
+                })
+            elif data.get("type") == "workflow":
+                from services.agent_service import agent_service
+                result = await agent_service.run_workflow(
+                    workflow_name=data.get("workflow_name"),
+                    session_id=data.get("session_id", "default"),
+                    parameters=data.get("parameters")
+                )
+                await websocket.send_json({
+                    "type": "workflow_result",
+                    "data": result
+                })
+            elif data.get("type") == "ping":
+                await websocket.send_json({"type": "pong"})
+                
+    except Exception as e:
+        print(f"Agent WebSocket error: {e}")
+    finally:
+        try:
+            from battery_forge_agent.shared.callbacks import agent_callbacks
+            agent_callbacks.set_websocket(None)
+        except:
+            pass

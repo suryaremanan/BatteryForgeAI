@@ -1,0 +1,181 @@
+
+[2026-01-23 14:25:52.088025] Error: Traceback (most recent call last):
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/api/routes.py", line 116, in chat_endpoint
+    result = await agent_service.chat(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/agent_service.py", line 100, in chat
+    return await self._run_fallback_agent(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/agent_service.py", line 180, in _run_fallback_agent
+    response = chat.send_message([message])
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/generative_models.py", line 591, in send_message
+    self.history, content, response = self._handle_afc(
+                                      ~~~~~~~~~~~~~~~~^
+        response=response,
+        ^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+        request_options=request_options,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/generative_models.py", line 647, in _handle_afc
+    fr = tools_lib(fc)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/types/content_types.py", line 881, in __call__
+    response = declaration(fc)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/types/content_types.py", line 641, in __call__
+    result = self.function(**fc.args)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/gemini_service.py", line 625, in tool_predict_battery_life
+    data = aging_service.generate_aging_curve(current_cycle=800)
+TypeError: AgingService.generate_aging_curve() got an unexpected keyword argument 'current_cycle'
+
+
+[2026-01-23 14:30:27.049353] Error: Traceback (most recent call last):
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/api/routes.py", line 116, in chat_endpoint
+    result = await agent_service.chat(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/agent_service.py", line 102, in chat
+    return await self._run_fallback_agent(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/agent_service.py", line 182, in _run_fallback_agent
+    formatted_history.append({
+       ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/generative_models.py", line 591, in send_message
+    self.history, content, response = self._handle_afc(
+                                      ~~~~~~~~~~~~~~~~^
+        response=response,
+        ^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+        request_options=request_options,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/generative_models.py", line 647, in _handle_afc
+    fr = tools_lib(fc)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/types/content_types.py", line 881, in __call__
+    response = declaration(fc)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/types/content_types.py", line 641, in __call__
+    result = self.function(**fc.args)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/gemini_service.py", line 625, in tool_predict_battery_life
+    data = aging_service.generate_aging_curve(current_cycle=800)
+TypeError: AgingService.generate_aging_curve() got an unexpected keyword argument 'current_cycle'
+
+
+[2026-01-23 14:32:01.117416] Error: Traceback (most recent call last):
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/api/routes.py", line 116, in chat_endpoint
+    result = await agent_service.chat(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/agent_service.py", line 102, in chat
+    return await self._run_fallback_agent(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/agent_service.py", line 194, in _run_fallback_agent
+    response = chat.send_message([message])
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/generative_models.py", line 591, in send_message
+    self.history, content, response = self._handle_afc(
+                                      ~~~~~~~~~~~~~~~~^
+        response=response,
+        ^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+        request_options=request_options,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/generative_models.py", line 647, in _handle_afc
+    fr = tools_lib(fc)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/types/content_types.py", line 881, in __call__
+    response = declaration(fc)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/types/content_types.py", line 641, in __call__
+    result = self.function(**fc.args)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/gemini_service.py", line 625, in tool_predict_battery_life
+    data = aging_service.generate_aging_curve(current_cycle=800)
+TypeError: AgingService.generate_aging_curve() got an unexpected keyword argument 'current_cycle'
+
+
+[2026-01-23 14:33:42.071013] Error: Traceback (most recent call last):
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/api/routes.py", line 116, in chat_endpoint
+    result = await agent_service.chat(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/agent_service.py", line 102, in chat
+    return await self._run_fallback_agent(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/agent_service.py", line 197, in _run_fallback_agent
+    response = chat.send_message([message])
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/generative_models.py", line 591, in send_message
+    self.history, content, response = self._handle_afc(
+                                      ~~~~~~~~~~~~~~~~^
+        response=response,
+        ^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+        request_options=request_options,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/generative_models.py", line 647, in _handle_afc
+    fr = tools_lib(fc)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/types/content_types.py", line 881, in __call__
+    response = declaration(fc)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/types/content_types.py", line 641, in __call__
+    result = self.function(**fc.args)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/gemini_service.py", line 625, in tool_predict_battery_life
+    data = aging_service.generate_aging_curve(current_cycle=800)
+TypeError: AgingService.generate_aging_curve() got an unexpected keyword argument 'current_cycle'
+
+
+[2026-01-23 14:37:39.517117] Error: Traceback (most recent call last):
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/api/routes.py", line 116, in chat_endpoint
+    result = await agent_service.chat(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/agent_service.py", line 102, in chat
+    return await self._run_fallback_agent(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/agent_service.py", line 197, in _run_fallback_agent
+    response = chat.send_message([message])
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/generative_models.py", line 591, in send_message
+    self.history, content, response = self._handle_afc(
+                                      ~~~~~~~~~~~~~~~~^
+        response=response,
+        ^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+        request_options=request_options,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/generative_models.py", line 647, in _handle_afc
+    fr = tools_lib(fc)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/types/content_types.py", line 881, in __call__
+    response = declaration(fc)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/types/content_types.py", line 641, in __call__
+    result = self.function(**fc.args)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/gemini_service.py", line 625, in tool_predict_battery_life
+    data = aging_service.generate_aging_curve(current_cycle=800)
+TypeError: AgingService.generate_aging_curve() got an unexpected keyword argument 'current_cycle'
+
