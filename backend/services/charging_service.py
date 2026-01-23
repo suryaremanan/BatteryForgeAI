@@ -271,12 +271,26 @@ class ChargingService:
         from services.gemini_service import gemini_service
         
         try:
-            content_str = file_content.decode('utf-8', errors='ignore')
-            # Flexible Read
+            # 0. Try .MAT (Binary) - ADDED
             try:
-                df = pd.read_csv(io.StringIO(content_str), skipinitialspace=True)
-            except:
-                df = pd.read_csv(io.StringIO(content_str), delim_whitespace=True)
+                import scipy.io
+                if file_content[:6] == b'MATLAB':
+                     mat_data = scipy.io.loadmat(io.BytesIO(file_content))
+                     df = self._parse_mat_structure(mat_data)
+                     if df.empty:
+                         raise ValueError("Empty .mat dataset")
+            except ImportError:
+                 pass
+            except Exception:
+                 pass
+
+            if 'df' not in locals() or df is None or df.empty:
+                content_str = file_content.decode('utf-8', errors='ignore')
+                # Flexible Read
+                try:
+                    df = pd.read_csv(io.StringIO(content_str), skipinitialspace=True)
+                except:
+                    df = pd.read_csv(io.StringIO(content_str), sep=r'\s+', engine='python')
 
             if df.empty:
                 raise ValueError("Empty dataset")
@@ -284,20 +298,24 @@ class ChargingService:
             # 1. Ask Gemini to Map Columns
             headers = list(df.columns)
             sample = df.head(5).to_csv(index=False)
+            print(f"DEBUG: Headers sent to Gemini: {headers}") # Helper for debugging .mat issues
             
             # We add a new method to gemini_service for this specific mapping task
             mapping = await gemini_service.map_columns_semantic(headers, sample)
             
             if not mapping or "error" in mapping:
                 # Fallback to Regex if AI fails
-                print("Gemini Mapping Failed, falling back to Regex.")
-                return self._fallback_regex_parse(df)
+                # USER REQUEST: Disable Fallback
+                print("Gemini Mapping Failed. Aborting (Regex Fallback Disabled).")
+                raise ValueError("Gemini AI could not map columns and Regex fallback is disabled.")
+                # return self._fallback_regex_parse(df)
 
             # 2. Apply Mapping
             # mapping should look like: {"time": "Test_Time(s)", "voltage": "U_meas_V", ...}
             
             renamed_cols = {}
             for std_col, original_col in mapping.items():
+                std_col = std_col.lower() # Enforce lowercase standard keys
                 if original_col in df.columns:
                     renamed_cols[original_col] = std_col
             
@@ -308,8 +326,9 @@ class ChargingService:
             missing = [c for c in required if c not in df.columns]
             
             if missing:
-                print(f"AI Mapping missing columns: {missing}. Fallback to Regex.")
-                return self._fallback_regex_parse(df)
+                print(f"AI Mapping missing columns: {missing}. Aborting (Regex Fallback Disabled).")
+                raise ValueError(f"AI Mapping missing critical columns: {missing}")
+                # return self._fallback_regex_parse(df)
             
             # Coerce to numeric
             for c in required:
@@ -485,6 +504,127 @@ class ChargingService:
         plt.close()
         return buf
 
+    def _parse_mat_structure(self, mat_data) -> pd.DataFrame:
+        """
+        Helper to extract standard charging data from complex nested MAT files (NASA, CALCE, etc.)
+        NASA Structure: B00XX -> cycle (1xN structured array) -> data (1x1 struct) -> Voltage_measured etc.
+        """
+        import pandas as pd
+        import numpy as np
+
+        candidates = {}  # {col_name: array}
+        
+        def extract_time_series_from_cycles(cycle_array, prefix=""):
+            """
+            Handle NASA-style cycle arrays: structured arrays where each element contains data fields.
+            cycle_array is shape (1, N) structured array with fields like 'type', 'data', 'time', etc.
+            """
+            if cycle_array.dtype.names is None:
+                return
+            
+            # Reshape if needed - NASA uses (1, N) shape
+            if len(cycle_array.shape) == 2:
+                num_cycles = cycle_array.shape[1]
+            else:
+                num_cycles = cycle_array.shape[0]
+            
+            print(f"Debug MAT: Found {num_cycles} cycles in {prefix}")
+            
+            # First, discover what data fields exist in the first cycle
+            first_cycle = cycle_array.flat[0]
+            
+            # Check if there's a 'data' field (NASA structure)
+            data_fields = []
+            if 'data' in (cycle_array.dtype.names or []):
+                # Get the data struct from first cycle
+                data_struct = first_cycle['data']
+                # Navigate one level deeper (usually 1x1 wrapper)
+                if isinstance(data_struct, np.ndarray) and data_struct.size == 1:
+                    inner_data = data_struct.flat[0]
+                    if hasattr(inner_data, 'dtype') and inner_data.dtype.names:
+                        data_fields = list(inner_data.dtype.names)
+                        print(f"Debug MAT: Found data fields: {data_fields}")
+            
+            # Stitch each data field across all cycles
+            for field_name in data_fields:
+                stitched = []
+                for i in range(num_cycles):
+                    cycle_elem = cycle_array.flat[i]
+                    try:
+                        data_struct = cycle_elem['data']
+                        if isinstance(data_struct, np.ndarray) and data_struct.size >= 1:
+                            inner_data = data_struct.flat[0]
+                            if hasattr(inner_data, 'dtype') and field_name in (inner_data.dtype.names or []):
+                                arr = inner_data[field_name]
+                                if isinstance(arr, np.ndarray) and np.issubdtype(arr.dtype, np.number):
+                                    stitched.append(arr.flatten())
+                    except (KeyError, IndexError, TypeError):
+                        continue
+                
+                if stitched:
+                    full_array = np.concatenate(stitched)
+                    key = f"{prefix}_{field_name}" if prefix else field_name
+                    candidates[key] = full_array
+                    print(f"Debug MAT: Stitched {key}: {len(stitched)} cycles -> {len(full_array)} points")
+        
+        def flatten_extract(obj, prefix=""):
+            """Recursively extract data from nested structures."""
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    flatten_extract(v, prefix + "_" + k if prefix else k)
+                    
+            elif isinstance(obj, np.ndarray):
+                # Check if it's a structured array (has named fields)
+                if obj.dtype.names:
+                    # Check if this looks like a NASA cycle array (has 'data' field)
+                    if 'data' in obj.dtype.names and 'type' in obj.dtype.names:
+                        extract_time_series_from_cycles(obj, prefix)
+                    else:
+                        # Generic structured array - recurse into fields
+                        if obj.size >= 1:
+                            for name in obj.dtype.names:
+                                val = obj.flat[0][name]
+                                flatten_extract(val, prefix + "_" + name if prefix else name)
+                
+                # If it's a simple numeric array with enough data points, add it
+                elif np.issubdtype(obj.dtype, np.number) and obj.size > 10:
+                    candidates[prefix] = obj.flatten()
+                    print(f"Debug MAT: Found numeric array {prefix}: {obj.size} points")
+        
+        # Start extraction from top-level keys
+        for key, value in mat_data.items():
+            if key.startswith('__'):
+                continue  # Skip MATLAB metadata
+            flatten_extract(value, key)
+
+        if not candidates:
+            print("Debug MAT: No candidates found after extraction.")
+            return pd.DataFrame()
+        
+        # Find the most common length among large arrays (time-series data)
+        lengths = [(k, len(v)) for k, v in candidates.items()]
+        print(f"Debug MAT: Candidate lengths: {lengths}")
+        
+        if not lengths:
+            return pd.DataFrame()
+        
+        # For NASA data, prefer the longest arrays (the stitched time-series)
+        max_len = max(l[1] for l in lengths)
+        
+        # Build DataFrame with columns matching max length
+        final_cols = {}
+        for k, v in candidates.items():
+            if len(v) == max_len:
+                # Ensure it's numeric
+                if np.issubdtype(v.dtype, np.number):
+                    final_cols[k] = v
+                    print(f"Debug MAT: Selected column {k} ({len(v)} points)")
+        
+        df = pd.DataFrame(final_cols)
+        print(f"Debug MAT: Created DataFrame with shape {df.shape}, columns: {list(df.columns)}")
+        
+        return df
+
     async def process_universal_file(self, file_content: bytes, local_mode: bool = False, chemistry_type: str = "NMC"):
         """
         Universal entry point.
@@ -492,17 +632,37 @@ class ChargingService:
         """
         from services.gemini_service import gemini_service
         try:
-
-            # Flexible reading: Try Excel then CSV
-
-            # Flexible reading: Try Excel then CSV
+            import pandas as pd
+            import io
+            
+            # Flexible reading: Try Excel then CSV -> NOW .MAT
             df = None
             
-            # 1. Try Excel/Binary
+            # 0. Try .MAT (Binary)
             try:
-                df = pd.read_excel(io.BytesIO(file_content))
-            except:
+                import scipy.io
+                # Try loading as MAT
+                # io.BytesIO(file_content) works for loadmat? 
+                # Scipy loadmat expects a file-like object or filename.
+                
+                # Check magic header for MAT file (starts with 'MATLAB')
+                if file_content[:6] == b'MATLAB':
+                     mat_data = scipy.io.loadmat(io.BytesIO(file_content))
+                     df = self._parse_mat_structure(mat_data)
+                     if not df.empty:
+                         print("Successfully parsed .mat file structure.")
+            except ImportError:
+                print("Scipy not installed. Skipping .mat parse check.")
+            except Exception as e:
+                print(f".mat Parse Attempt failed: {e}")
                 pass
+            
+            # 1. Try Excel/Binary (if not yet found)
+            if df is None:
+                try:
+                    df = pd.read_excel(io.BytesIO(file_content))
+                except:
+                    pass
                 
             # 2. Try Text/CSV
             if df is None:
@@ -511,7 +671,7 @@ class ChargingService:
                     df = pd.read_csv(io.StringIO(content_str), skipinitialspace=True)
                 except:
                     try:
-                        df = pd.read_csv(io.StringIO(content_str), delim_whitespace=True)
+                        df = pd.read_csv(io.StringIO(content_str), sep=r'\s+', engine='python')
                     except:
                         try:
                              # Last resort: Engine python with auto separator
@@ -520,7 +680,7 @@ class ChargingService:
                              pass
 
             if df is None or df.empty:
-                raise ValueError("Could not parse file. Supported: CSV, Excel, Tab-separated.")
+                raise ValueError("Could not parse file. Supported: CSV, Excel, Tab-separated, .mat")
             
             # Numeric conversion attempt on all columns (Soft, for JSON stability later)
             for c in df.columns:
@@ -531,14 +691,39 @@ class ChargingService:
 
             # 2. Intelligent Analysis & Physics Simulation
             metadata = {}
+            # 2. Intelligent Analysis & Physics Simulation
+            metadata = {}
             if local_mode:
                 metadata = self._regex_parse(df)
             else:
                 # Clean headers for LLM
                 headers = list(df.columns)
-                sample_data = df.head(5).to_csv(index=False)
+                
+                # SAFETY: Ensure we only send SCALAR columns to to_csv to avoid "ufunc 'isnan'" crash
+                # Drop columns that hold arrays/objects if they survived coercion
+                safe_df = df.head(5).copy()
+                cols_to_drop = []
+                for c in safe_df.columns:
+                     # Check if any value is an array/list
+                     if safe_df[c].apply(lambda x: isinstance(x, (list, np.ndarray, tuple))).any():
+                         cols_to_drop.append(c)
+                
+                if cols_to_drop:
+                    print(f"Dropping complex columns for Gemini sample: {cols_to_drop}")
+                    safe_df = safe_df.drop(columns=cols_to_drop)
+                
+                sample_data = safe_df.to_csv(index=False)
                 # Call Gemini for Metadata
                 metadata = await gemini_service.analyze_dataset_signature(headers, sample_data)
+                
+                # Call Gemini for intelligent plot suggestions (multi-chart)
+                try:
+                    plot_suggestions = await gemini_service.suggest_interactive_plots(headers, sample_data)
+                    if plot_suggestions:
+                        metadata['plot_suggestions'] = plot_suggestions
+                        print(f"Gemini suggested {len(plot_suggestions.get('recommended_plots', []))} chart(s)")
+                except Exception as e:
+                    print(f"Plot suggestions failed: {e}")
             
             # --- SANITY CHECK: FIX BAD VOLTAGE MAPPING ---
             # Hackathon Safety: Sometimes "Time" (0-50000) is mistaken for "Voltage" (3-4V)
@@ -659,7 +844,7 @@ class ChargingService:
                 try:
                     df = pd.read_csv(io.BytesIO(content), skipinitialspace=True)
                 except:
-                    df = pd.read_csv(io.BytesIO(content), delim_whitespace=True)
+                    df = pd.read_csv(io.BytesIO(content), sep=r'\s+', engine='python')
                     
                 norm_cols = {c.lower(): c for c in df.columns}
                 x_col, y_col = None, None

@@ -190,31 +190,47 @@ class FleetService:
     def check_drill_wear(self, drill_id: str, current_hit_count: int):
         """
         Analyzes drill logs for excessive wear patterns (Phase 4).
+        Enhanced with predictive analytics and detailed status messaging.
         """
         # Max standard hits for a 0.2mm drill is roughly 1000-2000 depending on material.
         MAX_SAFE_HITS = 1500
         
         wear_status = "GOOD"
         action_required = "NONE"
+        status_message = "Drill operating within normal parameters."
+        estimated_remaining = MAX_SAFE_HITS - current_hit_count
         
         # 1. Hard Life Limit
         if current_hit_count > MAX_SAFE_HITS:
             wear_status = "CRITICAL"
             action_required = "REPLACE_IMMEDIATELY"
+            status_message = f"⚠️ CRITICAL: Drill exceeded max hits by {current_hit_count - MAX_SAFE_HITS}. Replace immediately to prevent breakage!"
             
         # 2. Predictive Heuristic (Simulated "Resin Smear" detection)
-        # In a real system, this would ingest torque/RPM data.
-        # We simulate a "smear risk" if hits > 80% and it's a "hard" material
+        elif current_hit_count > (MAX_SAFE_HITS * 0.9):
+            wear_status = "CRITICAL"
+            action_required = "REPLACE_AFTER_PANEL"
+            status_message = f"🔴 Drill at {round(current_hit_count/MAX_SAFE_HITS*100)}% life. Schedule replacement after current panel."
+            
         elif current_hit_count > (MAX_SAFE_HITS * 0.8):
              wear_status = "WARNING"
              action_required = "INSPECT_TIP"
+             status_message = f"🟡 Drill at {round(current_hit_count/MAX_SAFE_HITS*100)}% life. Inspect for resin smear buildup."
              
+        else:
+            wear_status = "GOOD"
+            action_required = "CONTINUE"
+            status_message = f"✅ Drill healthy. ~{estimated_remaining} hits remaining."
+              
         return {
             "drill_id": drill_id,
             "hits": current_hit_count,
             "max_hits": MAX_SAFE_HITS,
             "wear_status": wear_status,
-            "action": action_required
+            "action": action_required,
+            "status_message": status_message,
+            "estimated_remaining_hits": max(0, estimated_remaining),
+            "wear_percentage": round((current_hit_count / MAX_SAFE_HITS) * 100, 1)
         }
 
 fleet_service = FleetService()

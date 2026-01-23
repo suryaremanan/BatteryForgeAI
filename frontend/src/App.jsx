@@ -160,6 +160,7 @@ function App() {
                                     </div>
                                 </div>
                                 <div className="flex-1">
+                                    <FleetMonitor />
                                 </div>
                             </div>
                         )}

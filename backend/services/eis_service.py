@@ -30,7 +30,7 @@ class EISService:
             # 2. Key Fallback: delim_whitespace=True (Matches your specific file format: "time/s    cycle...")
             if df is None or len(df.columns) <= 1:
                 try:
-                    df = pd.read_csv(io.StringIO(content_str), delim_whitespace=True)
+                    df = pd.read_csv(io.StringIO(content_str), sep=r'\s+', engine='python')
                 except:
                     pass
             

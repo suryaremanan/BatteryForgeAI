@@ -3,6 +3,66 @@ import { Activity, Zap, AlertTriangle, CheckCircle, Upload, FileText, Download, 
 import { analyzeChargingSignature, analyzeBatch, fetchHistory, analyzeComparison, exportHistory, predictAging } from '../api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Brush, ScatterChart, Scatter, AreaChart, Area } from 'recharts';
 
+// LTTB (Largest Triangle Three Buckets) Downsampling Algorithm
+// Reduces data points while preserving visual shape
+const downsampleLTTB = (data, targetPoints, xKey = 'time', yKey = 'voltage') => {
+    if (!data || data.length <= targetPoints) return data;
+
+    const dataLength = data.length;
+    const sampled = [data[0]]; // Always keep first point
+    const bucketSize = (dataLength - 2) / (targetPoints - 2);
+
+    let a = 0; // Previous selected point index
+
+    for (let i = 0; i < targetPoints - 2; i++) {
+        // Calculate bucket boundaries
+        const bucketStart = Math.floor((i + 1) * bucketSize) + 1;
+        const bucketEnd = Math.min(Math.floor((i + 2) * bucketSize) + 1, dataLength - 1);
+
+        // Calculate average point of next bucket for reference
+        let avgX = 0, avgY = 0;
+        const nextBucketStart = bucketEnd;
+        const nextBucketEnd = Math.min(Math.floor((i + 3) * bucketSize) + 1, dataLength);
+        const nextBucketSize = nextBucketEnd - nextBucketStart;
+
+        for (let j = nextBucketStart; j < nextBucketEnd; j++) {
+            avgX += data[j][xKey] || 0;
+            avgY += data[j][yKey] || 0;
+        }
+        avgX /= nextBucketSize || 1;
+        avgY /= nextBucketSize || 1;
+
+        // Find point in current bucket with max triangle area
+        let maxArea = -1;
+        let maxAreaIndex = bucketStart;
+
+        const pointAX = data[a][xKey] || 0;
+        const pointAY = data[a][yKey] || 0;
+
+        for (let j = bucketStart; j < bucketEnd; j++) {
+            const pointBX = data[j][xKey] || 0;
+            const pointBY = data[j][yKey] || 0;
+
+            // Triangle area calculation
+            const area = Math.abs(
+                (pointAX - avgX) * (pointBY - pointAY) -
+                (pointAX - pointBX) * (avgY - pointAY)
+            ) / 2;
+
+            if (area > maxArea) {
+                maxArea = area;
+                maxAreaIndex = j;
+            }
+        }
+
+        sampled.push(data[maxAreaIndex]);
+        a = maxAreaIndex;
+    }
+
+    sampled.push(data[dataLength - 1]); // Always keep last point
+    return sampled;
+};
+
 const ChargingAnalysis = ({ onAnalysisComplete }) => {
     const [activeTab, setActiveTab] = useState('analyze'); // 'analyze', 'history', 'compare', 'aging'
     const [loading, setLoading] = useState(false);
@@ -11,6 +71,10 @@ const ChargingAnalysis = ({ onAnalysisComplete }) => {
     const [localMode, setLocalMode] = useState(false);
     const [chemistry, setChemistry] = useState('NMC'); // 'NMC' or 'LFP'
     const [enableZoom, setEnableZoom] = useState(true);
+    const [dataDensity, setDataDensity] = useState(2000); // Number of points to display
+    const [selectedChartId, setSelectedChartId] = useState('default'); // For multi-chart selection
+    const [userXCol, setUserXCol] = useState(null); // User-selected X axis column
+    const [userYCols, setUserYCols] = useState([]); // User-selected Y axis columns (multi-select)
 
     // Analysis State
     const [result, setResult] = useState(null); // Single result
@@ -336,7 +400,7 @@ const ChargingAnalysis = ({ onAnalysisComplete }) => {
                         {/* Control Panel */}
                         <div className="space-y-4">
                             <p className="text-slate-400 text-sm">
-                                Upload single or multiple CSVs (Cycling, EIS) for generic or batch analysis.
+                                Upload single or multiple CSVs or .mat files (Cycling, EIS) for generic or batch analysis.
                             </p>
 
                             {/* Privacy & Chemistry Controls */}
@@ -707,6 +771,57 @@ const ChargingAnalysis = ({ onAnalysisComplete }) => {
                                 </div>
                             ) : result?.plot_data ? (
                                 <div className="flex flex-col w-full">
+                                    {/* AI Chart Recommendations Panel */}
+                                    {result?.plot_suggestions?.recommended_plots?.length > 0 && (
+                                        <div className="p-3 bg-gradient-to-r from-purple-900/20 to-indigo-900/20 border-b border-purple-500/20">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="flex items-center gap-2">
+                                                    <Cpu className="w-4 h-4 text-purple-400" />
+                                                    <span className="text-xs font-semibold text-purple-300">AI-Suggested Charts</span>
+                                                    <span className="text-[10px] text-slate-500">({result.plot_suggestions.recommended_plots.length} recommendations)</span>
+                                                </div>
+                                                {result.plot_suggestions.data_description && (
+                                                    <span className="text-[10px] text-slate-400 italic truncate max-w-[300px]">
+                                                        {result.plot_suggestions.data_description}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                <button
+                                                    onClick={() => setSelectedChartId('default')}
+                                                    className={`px-3 py-1.5 text-xs rounded-lg transition-all ${selectedChartId === 'default'
+                                                        ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
+                                                        : 'bg-slate-800/50 text-slate-400 border border-slate-700 hover:bg-slate-700'
+                                                        }`}
+                                                >
+                                                    Default
+                                                </button>
+                                                {result.plot_suggestions.recommended_plots.map((chart) => (
+                                                    <button
+                                                        key={chart.id}
+                                                        onClick={() => setSelectedChartId(chart.id)}
+                                                        className={`px-3 py-1.5 text-xs rounded-lg transition-all ${selectedChartId === chart.id
+                                                            ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                                            : 'bg-slate-800/50 text-slate-400 border border-slate-700 hover:bg-slate-700'
+                                                            }`}
+                                                        title={chart.description}
+                                                    >
+                                                        {chart.title}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            {/* Show insights */}
+                                            {result.plot_suggestions.insights?.length > 0 && (
+                                                <div className="mt-2 flex flex-wrap gap-2">
+                                                    {result.plot_suggestions.insights.slice(0, 2).map((insight, i) => (
+                                                        <span key={i} className="text-[10px] text-indigo-300/70 bg-indigo-500/10 px-2 py-0.5 rounded">
+                                                            💡 {insight}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                     <div className="w-full h-[350px] pt-4 pr-4 pl-0">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <LineChart margin={{ top: 10, right: 30, left: 0, bottom: 50 }}>
@@ -732,16 +847,77 @@ const ChargingAnalysis = ({ onAnalysisComplete }) => {
                                                 />
                                                 <Legend verticalAlign="top" />
 
-                                                {/* 1. Experimental Data (Real) - Solid Line */}
-                                                <Line
-                                                    data={result.plot_data}
-                                                    type="monotone"
-                                                    dataKey={result.plot_config?.y_axis_col || 'voltage'}
-                                                    name="Experimental (Real)"
-                                                    stroke="#eab308"
-                                                    strokeWidth={2}
-                                                    dot={false}
-                                                />
+                                                {/* Dynamic Chart Rendering based on selectedChartId */}
+                                                {(() => {
+                                                    // Define color palette for multi-series
+                                                    const colors = ['#eab308', '#10b981', '#3b82f6', '#f97316', '#8b5cf6', '#ec4899'];
+
+                                                    // PRIORITY 1: User-selected columns (from dropdowns/buttons)
+                                                    if (userYCols.length > 0) {
+                                                        const xAxis = userXCol || result.plot_config?.x_axis_col || 'time';
+                                                        return userYCols.map((yCol, i) => {
+                                                            if (!result.plot_data?.[0]?.[yCol]) return null;
+                                                            return (
+                                                                <Line
+                                                                    key={yCol}
+                                                                    data={downsampleLTTB(result.plot_data, dataDensity, xAxis, yCol)}
+                                                                    type="monotone"
+                                                                    dataKey={yCol}
+                                                                    name={yCol}
+                                                                    stroke={colors[i % colors.length]}
+                                                                    strokeWidth={2}
+                                                                    dot={false}
+                                                                />
+                                                            );
+                                                        });
+                                                    }
+
+                                                    // PRIORITY 2: AI-suggested chart
+                                                    const suggestedChart = result?.plot_suggestions?.recommended_plots?.find(
+                                                        c => c.id === selectedChartId
+                                                    );
+
+                                                    if (suggestedChart && suggestedChart.y_axes?.length > 0) {
+                                                        // Render AI-suggested chart (potentially multi-series)
+                                                        const xAxis = suggestedChart.x_axis || result.plot_config?.x_axis_col || 'time';
+
+                                                        return suggestedChart.y_axes.map((yCol, i) => {
+                                                            // Check if this column exists in the data
+                                                            if (!result.plot_data?.[0]?.[yCol]) return null;
+
+                                                            return (
+                                                                <Line
+                                                                    key={yCol}
+                                                                    data={downsampleLTTB(result.plot_data, dataDensity, xAxis, yCol)}
+                                                                    type="monotone"
+                                                                    dataKey={yCol}
+                                                                    name={yCol}
+                                                                    stroke={colors[i % colors.length]}
+                                                                    strokeWidth={2}
+                                                                    dot={false}
+                                                                />
+                                                            );
+                                                        });
+                                                    } else {
+                                                        // Default chart (original behavior)
+                                                        return (
+                                                            <Line
+                                                                data={downsampleLTTB(
+                                                                    result.plot_data,
+                                                                    dataDensity,
+                                                                    result.plot_config?.x_axis_col || 'time',
+                                                                    result.plot_config?.y_axis_col || 'voltage'
+                                                                )}
+                                                                type="monotone"
+                                                                dataKey={result.plot_config?.y_axis_col || 'voltage'}
+                                                                name={`Experimental (${Math.min(dataDensity, result.plot_data?.length || 0).toLocaleString()} pts)`}
+                                                                stroke="#eab308"
+                                                                strokeWidth={2}
+                                                                dot={false}
+                                                            />
+                                                        );
+                                                    }
+                                                })()}
 
                                                 {/* 2. Physics Twin (PyBaMM) - Dashed Line */}
                                                 {(() => {
@@ -832,22 +1008,124 @@ const ChargingAnalysis = ({ onAnalysisComplete }) => {
                                     </div>
 
                                     {/* Chart Controls (Below Plot) */}
-                                    <div className="flex justify-end p-2 border-t border-white/5 bg-slate-900/40">
-                                        <div className="flex items-center gap-4">
-                                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-500/20 bg-blue-500/10 text-blue-300">
-                                                <ZoomIn className="w-4 h-4" />
-                                                <span className="text-xs font-semibold">Slider Active</span>
+                                    <div className="p-3 border-t border-white/5 bg-slate-900/40 space-y-3">
+                                        {/* Column Selection Row */}
+                                        {result?.numeric_columns?.length > 0 && (
+                                            <div className="flex flex-wrap items-center gap-4">
+                                                {/* X-Axis Selector */}
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs text-slate-400">X-Axis:</span>
+                                                    <select
+                                                        value={userXCol || result.plot_config?.x_axis_col || ''}
+                                                        onChange={(e) => {
+                                                            setUserXCol(e.target.value);
+                                                            setSelectedChartId('custom'); // Switch to custom mode
+                                                        }}
+                                                        className="bg-slate-800 border border-slate-600 text-slate-200 text-xs rounded px-2 py-1 focus:ring-blue-500 focus:border-blue-500 max-w-[150px]"
+                                                    >
+                                                        {result.numeric_columns.map(col => (
+                                                            <option key={col} value={col}>{col}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                {/* Y-Axis Multi-Selector */}
+                                                <div className="flex items-center gap-2 flex-1">
+                                                    <span className="text-xs text-slate-400">Y-Axis:</span>
+                                                    <div className="flex flex-wrap gap-1 max-h-[60px] overflow-y-auto flex-1">
+                                                        {result.numeric_columns.slice(0, 30).map(col => {
+                                                            const isSelected = userYCols.includes(col);
+                                                            return (
+                                                                <button
+                                                                    key={col}
+                                                                    onClick={() => {
+                                                                        if (isSelected) {
+                                                                            setUserYCols(userYCols.filter(c => c !== col));
+                                                                        } else {
+                                                                            setUserYCols([...userYCols, col].slice(0, 6)); // Max 6 series
+                                                                        }
+                                                                        setSelectedChartId('custom');
+                                                                    }}
+                                                                    className={`px-2 py-0.5 text-[10px] rounded transition-all ${isSelected
+                                                                        ? 'bg-blue-500/30 text-blue-300 border border-blue-500/50'
+                                                                        : 'bg-slate-700/50 text-slate-400 border border-slate-600 hover:bg-slate-600'
+                                                                        }`}
+                                                                >
+                                                                    {col}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                        {result.numeric_columns.length > 30 && (
+                                                            <span className="text-[10px] text-slate-500">+{result.numeric_columns.length - 30} more</span>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <button
-                                                onClick={() => {
-                                                    // Quick Reset Hack: Toggle Zoom Off/On
-                                                    setEnableZoom(false);
-                                                    setTimeout(() => setEnableZoom(true), 50);
-                                                }}
-                                                className="px-3 py-1.5 rounded-lg border border-slate-600 bg-slate-800 text-slate-300 text-xs hover:bg-slate-700 hover:text-white transition-colors"
-                                            >
-                                                Reset View
-                                            </button>
+                                        )}
+
+                                        {/* Quick Presets from AI */}
+                                        {result?.plot_suggestions?.recommended_plots?.length > 0 && (
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <span className="text-[10px] text-purple-400">AI Presets:</span>
+                                                {result.plot_suggestions.recommended_plots.slice(0, 5).map(chart => (
+                                                    <button
+                                                        key={chart.id}
+                                                        onClick={() => {
+                                                            // Apply the AI preset
+                                                            setUserXCol(chart.x_axis);
+                                                            setUserYCols(chart.y_axes || []);
+                                                            setSelectedChartId(chart.id);
+                                                        }}
+                                                        className="px-2 py-0.5 text-[10px] rounded bg-purple-500/10 text-purple-300 border border-purple-500/20 hover:bg-purple-500/20"
+                                                        title={chart.description}
+                                                    >
+                                                        {chart.title}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Bottom Row: Density Slider + Zoom Controls */}
+                                        <div className="flex justify-between items-center">
+                                            {/* Data Density Slider */}
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-xs text-slate-400">Data Density:</span>
+                                                <input
+                                                    type="range"
+                                                    min="500"
+                                                    max="10000"
+                                                    step="500"
+                                                    value={dataDensity}
+                                                    onChange={(e) => setDataDensity(parseInt(e.target.value))}
+                                                    className="w-32 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                                />
+                                                <span className="text-xs text-blue-400 font-mono w-16">
+                                                    {dataDensity.toLocaleString()} pts
+                                                </span>
+                                                {result?.plot_data?.length > dataDensity && (
+                                                    <span className="text-[10px] text-slate-500">
+                                                        (of {result.plot_data.length.toLocaleString()} total)
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {/* Existing Controls */}
+                                            <div className="flex items-center gap-4">
+                                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-500/20 bg-blue-500/10 text-blue-300">
+                                                    <ZoomIn className="w-4 h-4" />
+                                                    <span className="text-xs font-semibold">Pan/Zoom</span>
+                                                </div>
+                                                <button
+                                                    onClick={() => {
+                                                        // Quick Reset Hack: Toggle Zoom Off/On
+                                                        setEnableZoom(false);
+                                                        setTimeout(() => setEnableZoom(true), 50);
+                                                    }}
+                                                    className="px-3 py-1.5 rounded-lg border border-slate-600 bg-slate-800 text-slate-300 text-xs hover:bg-slate-700 hover:text-white transition-colors"
+                                                >
+                                                    Reset View
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

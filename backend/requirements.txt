@@ -11,3 +11,4 @@ chromadb
 pypdf
 matplotlib
 pandas
+scipy

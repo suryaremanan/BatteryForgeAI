@@ -219,7 +219,11 @@ async def analyze_charging(file: UploadFile = File(...), local_mode: bool = Form
                 "recommendation": "Review plot for details.",
                 "anomaly_detected": False 
             },
-            "metrics": metrics
+            "metrics": metrics,
+            # NEW: Column info for user selection UI
+            "available_columns": list(df.columns),
+            "numeric_columns": [c for c in df.columns if df[c].dtype in ['int64', 'float64', 'int32', 'float32']],
+            "plot_suggestions": metadata.get('plot_suggestions', None)
         }
         
         # E. Deep Dive Telemetry Analysis (Added Phase 5)
@@ -455,10 +459,6 @@ async def predict_scaling(request: LaminationRequest):
     from services.simulation_service import simulation_service
     return simulation_service.predict_lamination_scaling(request.material_type, request.layer_count)
 
-@router.post("/process/lamination-scaling")
-async def predict_scaling(request: LaminationRequest):
-    from services.simulation_service import simulation_service
-    return simulation_service.predict_lamination_scaling(request.material_type, request.layer_count)
 
 # --- VISION ROUTES (Added Phase 3) ---
 
@@ -485,10 +485,6 @@ async def inspect_mask(panel_id: str):
     from services.vision_service import vision_service
     return await vision_service.inspect_solder_mask(panel_id)
 
-@router.get("/vision/inspect-mask/{panel_id}")
-async def inspect_mask(panel_id: str):
-    from services.vision_service import vision_service
-    return await vision_service.inspect_solder_mask(panel_id)
 
 # --- DRILL & PLATING ROUTES (Added Phase 4) ---
 
@@ -510,10 +506,6 @@ async def optimize_plating(request: PlatingRequest):
     from services.simulation_service import simulation_service
     return simulation_service.optimize_plating_distribution(request.panel_width_mm, request.panel_height_mm)
 
-@router.post("/process/plating-optimization")
-async def optimize_plating(request: PlatingRequest):
-    from services.simulation_service import simulation_service
-    return simulation_service.optimize_plating_distribution(request.panel_width_mm, request.panel_height_mm)
 
 # --- COMPLIANCE ROUTES (Added Phase 5) ---
 

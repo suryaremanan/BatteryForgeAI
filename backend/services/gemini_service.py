@@ -338,6 +338,116 @@ class GeminiService:
                 "plot_recommendation": {"x_axis_col": headers[0], "y_axis_col": headers[1] if len(headers)>1 else headers[0]},
                 "is_standard_cycling": False
             }
+    
+    async def suggest_interactive_plots(self, headers: list, sample_rows: str, column_stats: dict = None):
+        """
+        INTELLIGENT PLOT RECOMMENDER:
+        Analyzes the dataset and suggests multiple interactive charts the user might want to see.
+        Returns a list of plot configurations that the frontend can render as chart tabs.
+        """
+        stats_info = ""
+        if column_stats:
+            stats_info = f"\nColumn Statistics:\n{column_stats}"
+        
+        prompt = f"""
+        Act as a Senior Data Visualization Expert for Battery and EV Telemetry Data.
+        
+        Analyze this dataset and recommend the BEST interactive charts to explore it:
+        
+        Headers: {headers}
+        Sample Data:
+        {sample_rows}
+        {stats_info}
+        
+        Your task:
+        1. Identify ALL meaningful numeric columns that could be plotted
+        2. Recommend 2-5 different chart configurations that would be most useful for analysis
+        3. Prioritize charts that reveal important patterns (voltage trends, temperature anomalies, SOC behavior, etc.)
+        4. For each chart, specify:
+           - X-axis column (usually time or a sequential index)
+           - Y-axis column(s) - can suggest multiple series for overlay
+           - Chart type: 'line', 'scatter', 'area'
+           - Why this chart is useful
+        
+        IMPORTANT:
+        - Use EXACT column names from the headers provided
+        - If a column looks like 'cell1_voltage', 'cell2_voltage', etc., suggest overlaying them
+        - Suggest temperature vs time if temperature columns exist
+        - Suggest SOC (State of Charge) if it exists
+        
+        Return JSON ONLY:
+        {{
+            "data_description": "Brief description of what this dataset contains",
+            "total_columns": 25,
+            "numeric_columns": ["time", "voltage", "current", ...],
+            "recommended_plots": [
+                {{
+                    "id": "voltage_trend",
+                    "title": "Pack Voltage Over Time",
+                    "chart_type": "line",
+                    "x_axis": "timestamp",
+                    "y_axes": ["pack_voltage"],
+                    "description": "Shows overall battery voltage behavior during the session",
+                    "priority": 1
+                }},
+                {{
+                    "id": "cell_voltages",
+                    "title": "Individual Cell Voltages",
+                    "chart_type": "line", 
+                    "x_axis": "timestamp",
+                    "y_axes": ["cell1_v", "cell2_v", "cell3_v"],
+                    "description": "Compare individual cell voltages to detect imbalance",
+                    "priority": 2
+                }},
+                {{
+                    "id": "temp_monitoring",
+                    "title": "Temperature Profile",
+                    "chart_type": "area",
+                    "x_axis": "timestamp", 
+                    "y_axes": ["temperature"],
+                    "description": "Monitor thermal behavior for safety analysis",
+                    "priority": 3
+                }}
+            ],
+            "insights": [
+                "Dataset appears to be BMS telemetry from EV charging session",
+                "Cell voltage imbalance detected in sample - recommend cell comparison chart"
+            ]
+        }}
+        """
+        try:
+            response = self.flash_model.generate_content(prompt)
+            result = self._extract_json(response.text)
+            if result:
+                # Ensure recommended_plots exists
+                if 'recommended_plots' not in result:
+                    result['recommended_plots'] = []
+                return result
+            return {"error": "Could not parse response", "recommended_plots": []}
+        except Exception as e:
+            print(f"Plot Suggestion Error: {e}")
+            # Fallback: Create basic recommendations from headers
+            numeric_cols = [h for h in headers if not any(x in h.lower() for x in ['id', 'name', 'date', 'string'])]
+            time_cols = [h for h in headers if any(x in h.lower() for x in ['time', 'timestamp', 'date', 'seconds', 't'])]
+            x_axis = time_cols[0] if time_cols else (headers[0] if headers else 'index')
+            
+            return {
+                "data_description": "Dataset analysis failed, showing basic plot",
+                "numeric_columns": numeric_cols[:10],
+                "recommended_plots": [
+                    {
+                        "id": "default",
+                        "title": "Data Overview",
+                        "chart_type": "line",
+                        "x_axis": x_axis,
+                        "y_axes": [numeric_cols[1]] if len(numeric_cols) > 1 else [headers[0]],
+                        "description": "Default visualization",
+                        "priority": 1
+                    }
+                ],
+                "insights": ["Fallback mode - Gemini analysis failed"]
+            }
+            
     async def map_eis_columns(self, headers: list, sample_rows: str):
         """
         Specialized Mapper for EIS Data (Frequency, Real, Imaginary).
@@ -385,7 +495,14 @@ class GeminiService:
         
         Return a JSON object mapping: {{ "standard_key": "original_header" }}.
         Only include keys you are confident about.
-        Example: {{ "time": "Test_Time_s", "voltage": "U_meas", "current": "I_meas", "temperature": "T_aux_1" }}
+        Snippet 2: "Step_Time", "Step_Index", "Voltage_V", "Current_A" -> {{"time": "Step_Time", "voltage": "Voltage_V", "current": "Current_A"}}
+        
+        CRITICAL RULES:
+        1. For .mat/nested files, headers are flattened (e.g., 'data_step_voltage', 'operation_data_sub_0_volts').
+           YOU MUST MAP THESE. Ignore the prefixes ('data_step_', 'operation_') and match the core term ('voltage', 'volts', 'u_meas').
+        2. If you see 'voltage' or 'current' ANYWHERE in the string (case-insensitive), it is a very strong candidate.
+        3. 'time' might be 'step_time', 'test_time', 'duration', 't'.
+        4. Do not fail if you are 80% sure. We prefer a likely match over no match.
         """
         try:
             response = self.flash_model.generate_content(prompt)
