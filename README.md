@@ -7,6 +7,22 @@ An advanced agentic AI system for battery manufacturing defect detection, physic
 [![Gemini 3](https://img.shields.io/badge/Gemini-3.0-blue?style=for-the-badge&logo=google)](https://deepmind.google/technologies/gemini/)
 [![ADK](https://img.shields.io/badge/Google-ADK-orange?style=for-the-badge)](https://ai.google.dev/adk)
 [![PyBaMM](https://img.shields.io/badge/PyBaMM-Physics-green?style=for-the-badge)](https://www.pybamm.org/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
+
+## 📋 Table of Contents
+
+- [🎯 Overview](#-overview)
+- [✨ Key Features](#-key-features)
+- [🏗️ Architecture](#%EF%B8%8F-architecture)
+- [🚀 Quick Start](#-quick-start) - **Start Here!**
+  - [🐳 Docker Deployment](#-docker-deployment-recommended) (Recommended)
+  - [💻 Manual Setup](#-manual-setup-development)
+- [📖 Usage Guide](#-usage-guide)
+- [🛠️ Technology Stack](#%EF%B8%8F-technology-stack)
+- [📊 API Endpoints](#-api-endpoints)
+- [🚀 Deployment](#-deployment)
+- [🤝 Contributing](#-contributing)
 
 ---
 
@@ -102,7 +118,70 @@ BatteryForge AI revolutionizes battery quality control and fleet management thro
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### 🐳 Docker Deployment (Recommended)
+
+**The fastest way to run BatteryForge AI** - containerized deployment with zero manual configuration.
+
+#### Prerequisites
+- [Docker Desktop](https://docs.docker.com/get-docker/) (includes Docker Compose)
+- [Gemini API Key](https://aistudio.google.com/) (free tier available)
+
+#### One-Command Setup
+
+```bash
+# 1. Clone and navigate
+git clone <your-repo-url>
+cd BatteryForgeAI
+
+# 2. Configure API key
+cp .env.example .env
+nano .env  # Add: GEMINI_API_KEY=your_actual_key_here
+
+# 3. Launch (builds and starts all services)
+docker compose up --build -d
+```
+
+#### Access Your Application
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| 🌐 **Frontend** | http://localhost | Main web interface |
+| 🔧 **Backend API** | http://localhost:8000 | FastAPI server |
+| 📚 **API Docs** | http://localhost:8000/docs | Interactive Swagger UI |
+| ❤️ **Health Check** | http://localhost:8000/health | Service status |
+
+#### Common Commands
+
+```bash
+# View real-time logs
+docker compose logs -f
+
+# View specific service logs
+docker compose logs -f backend
+docker compose logs -f frontend
+
+# Restart services
+docker compose restart
+
+# Stop services (keeps data)
+docker compose down
+
+# Stop and REMOVE all data (⚠️ destructive)
+docker compose down -v
+
+# Rebuild after code changes
+docker compose up --build
+```
+
+**📖 For advanced Docker usage, troubleshooting, and production deployment, see [DOCKER.md](DOCKER.md)**
+
+---
+
+### 💻 Manual Setup (Development)
+
+For local development without Docker:
+
+#### Prerequisites
 - **Python 3.11+** (3.13 recommended)
 - **Node.js 18+**
 - **Gemini API Key** ([Get one here](https://aistudio.google.com/))
@@ -239,6 +318,13 @@ Frontend will be available at `http://localhost:5173`
 - **React Player** - Video playback
 - **Tailwind CSS** - Utility-first styling
 
+### Deployment & Infrastructure
+- **Docker** - Containerization for consistent deployment
+- **Docker Compose** - Multi-container orchestration
+- **Nginx** - Production web server and reverse proxy
+- **Multi-stage builds** - Optimized container images
+- **Persistent volumes** - Data preservation across restarts
+
 ---
 
 ## 📊 API Endpoints
@@ -363,6 +449,74 @@ Multi-layer impedance diagnosis per IEST standards:
 - **AI-powered technical Q&A** with citations
 - **Multimodal analysis** demonstrations
 - **Agent reasoning transparency** via trace logs
+
+---
+
+## 🚀 Deployment
+
+### Docker Deployment (Production-Ready)
+
+BatteryForge AI is fully containerized and ready for deployment to any Docker-compatible platform.
+
+#### Local/Development
+```bash
+docker compose up -d
+```
+
+#### Cloud Platforms
+
+**AWS (Elastic Container Service)**
+```bash
+# Push to ECR
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <account>.dkr.ecr.us-east-1.amazonaws.com
+docker tag batteryforgeai-backend:latest <account>.dkr.ecr.us-east-1.amazonaws.com/batteryforge-backend:latest
+docker push <account>.dkr.ecr.us-east-1.amazonaws.com/batteryforge-backend:latest
+# Deploy via ECS task definition
+```
+
+**Google Cloud Platform (Cloud Run)**
+```bash
+# Build and deploy
+gcloud builds submit --tag gcr.io/<project-id>/batteryforge-backend
+gcloud run deploy batteryforge --image gcr.io/<project-id>/batteryforge-backend --platform managed
+```
+
+**Azure (Container Instances)**
+```bash
+# Deploy via Azure Container Instances
+az container create --resource-group batteryforge-rg \
+  --name batteryforge-backend \
+  --image batteryforgeai-backend \
+  --dns-name-label batteryforge \
+  --ports 8000
+```
+
+**DigitalOcean App Platform**
+- Use `docker-compose.yml` with App Platform's Docker Compose support
+- Configure environment variables in dashboard
+- Automatic HTTPS and scaling
+
+#### Kubernetes (Advanced)
+For high-availability production deployments:
+- Convert `docker-compose.yml` to Kubernetes manifests using [kompose](https://kompose.io/)
+- Use Helm charts for package management
+- Configure horizontal pod autoscaling for backend
+- Set up Ingress for routing
+
+**See [DOCKER.md](DOCKER.md) for detailed production deployment, security hardening, and monitoring setup.**
+
+### Data Persistence
+
+All data is preserved across container restarts via Docker volumes:
+- **Analysis history** - SQLite database
+- **Knowledge base** - ChromaDB vector store  
+- **User uploads** - Battery images, CSVs, videos
+
+**Backup volumes before upgrades:**
+```bash
+docker run --rm -v batteryforgeai_battery-db:/data -v $(pwd)/backups:/backup \
+  alpine tar czf /backup/battery-db-$(date +%Y%m%d).tar.gz -C /data .
+```
 
 ---
 

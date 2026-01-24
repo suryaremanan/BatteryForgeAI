@@ -1,0 +1,56 @@
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Local database and uploads (will use volumes)
+*.db
+battery_forge.db
+chroma_db/
+uploads/
+
+# Logs
+*.log
+error_log.txt
+
+# Environment files (will be mounted separately)
+.env
+.env.local
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+docs/
+
+# Test files
+tests/
+test_*.py
+*_test.py
+
+# Scripts
+scripts/
