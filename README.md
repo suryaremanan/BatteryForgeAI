@@ -46,7 +46,7 @@ BatteryForge AI revolutionizes battery quality control and fleet management thro
 ### 🤖 Multi-Agent Orchestration (ADK)
 - **Autonomous delegation** - Commander intelligently routes tasks to specialist agents
 - **Real-time trace visualization** - See agent transfers and tool calls in action
-- **Context-aware responses** - Agents share workspace state and session history
+- **Context & Memory** - Agents maintain long-term conversation history, remembering previous queries, results, and user preferences (e.g., "Show me the graph for *that* pack")
 - **Marathon workflows** - Long-running tasks (pack audits, continuous monitoring)
 
 ### 👁️ Visual Intelligence
@@ -62,10 +62,11 @@ BatteryForge AI revolutionizes battery quality control and fleet management thro
 - **EIS analysis** - Layer-by-layer impedance diagnosis (Ohmic, Kinetics, Diffusion)
 
 ### 🚀 Fleet Management
-- **100+ pack monitoring** - Real-time health, temperature, and SOH tracking
-- **Scenario simulation** - Heat waves, cold snaps, fast charging stress tests
-- **Strategic insights** - Thermal spread analytics, risk assessment, tactical commands
-- **Pack drill-down** - Individual battery maintenance recommendations
+- **Unified Dashboard** - Real-time tracking of vehicles, drivers, and charging stations
+- **Scenario Simulation** - Heat waves, cold snaps, fast charging stress tests
+- **Strategic Insights** - Thermal spread analytics, risk assessment, tactical commands
+- **Smart Settings** - Configurable thresholds, notifications, and units via new **Settings Panel**
+- **AI Command Center** - "Add Driver", "Assign Vehicle" via natural language commands
 
 ### 🏭 PCB Manufacturing
 - **Gerber file analysis** - Automated CAM validation
@@ -77,7 +78,8 @@ BatteryForge AI revolutionizes battery quality control and fleet management thro
 - **ChromaDB vector store** - Semantic search across technical documentation
 - **Gemini embeddings** - Context-aware retrieval
 - **Chat integration** - Ask questions with automatic knowledge injection
-- **PDF ingestion** - Battery safety standards, manuals, protocols
+- **PDF ingestion** - Parse battery safety standards, extensive manuals, and supplier datasheets
+- **Technical Q&A** - "What is the max charging current for the Samsung 30Q based on the datasheet?"
 
 ---
 
@@ -262,10 +264,10 @@ Frontend will be available at `http://localhost:5173`
 ### 3. Fleet Monitoring
 
 1. Navigate to **Fleet Monitor**
-2. View 100+ battery pack real-time status
-3. Run scenario simulations (heat wave, cold snap, fast charging)
-4. Review strategic insights and thermal spread analytics
-5. Drill down to individual pack maintenance
+2. View real-time status of **Vehicles**, **Drivers**, and **Charging Stations** at a glance
+3. Use the **Map View** (powered by Leaflet) to track assets geographically
+4. Run scenario simulations (heat wave, cold snap) via the AI Agent
+5. Manage fleet configuration via the new **Settings** tab
 
 ### 4. AI Chat Assistant
 
@@ -274,9 +276,11 @@ Frontend will be available at `http://localhost:5173`
    - "Analyze this battery image for defects"
    - "Simulate a heat wave on the fleet"
    - "What is lithium plating?"
+   - "According to the uploaded LG datasheet, what is the cutoff voltage?"
    - "Run a full pack audit"
 3. Watch agent trace to see specialist collaboration
 4. Navigate automatically with `[VIEW: VISUAL]` commands
+5. **Contextual Memory** - The agent remembers previous context, allowing for natural follow-up questions (e.g., "Add a driver for *that* vehicle")
 
 ### 5. PCB Manufacturing
 
@@ -314,6 +318,7 @@ Frontend will be available at `http://localhost:5173`
 - **React 18** - UI framework
 - **Vite** - Lightning-fast build tool
 - **Recharts** - Scientific data visualization
+- **Leaflet (Vanilla)** - Lightweight, robust mapping without React wrappers
 - **Framer Motion** - Smooth animations
 - **React Player** - Video playback
 - **Tailwind CSS** - Utility-first styling

@@ -4,11 +4,14 @@ import LogParser from './components/LogParser';
 import AnalysisResult from './components/AnalysisResult';
 import ChatInterface from './components/ChatInterface';
 import ChargingAnalysis from './components/ChargingAnalysis';
+import { WorkspaceProvider } from './context/WorkspaceContext';
 
-import FleetMonitor from './components/FleetMonitor';
+// import FleetMonitor from './components/FleetMonitor';
+import FleetApp from './FleetApp';
 import VisualIntelligence from './components/VisualIntelligence';
 import PCBManufacturing from './components/PCBManufacturing';
 import HomePage from './components/HomePage';
+import AgentTracePanel from './components/AgentTracePanel';
 import { Microscope, Activity, Cpu, Monitor, Terminal, Home, Layers } from 'lucide-react';
 
 function App() {
@@ -17,6 +20,8 @@ function App() {
     const [agingMetrics, setAgingMetrics] = useState(null);
     const [alertLevel, setAlertLevel] = useState('normal'); // 'normal', 'critical'
     const [isAgentOpen, setIsAgentOpen] = useState(false); // UI State for Layout Occlusion Fix
+    const [agentTraces, setAgentTraces] = useState([]); // Real-time agent trace data
+    const [isAgentActive, setIsAgentActive] = useState(false); // Agent processing indicator
 
     // ADK Standard: Formal Agent State Object
     const agentState = {
@@ -90,6 +95,9 @@ function App() {
             {/* Split Screen Layout */}
             <div className="flex-1 flex overflow-hidden relative">
 
+                {/* AGENT TRACE PANEL */}
+                <AgentTracePanel traces={agentTraces} isActive={isAgentActive} />
+
                 {/* FLOATING AGENT (Result of UI Redesign) */}
                 {/* We pass the state setter down so ChatInterface can control it, but App controls the layout */}
                 <ChatInterface
@@ -97,6 +105,8 @@ function App() {
                     agentState={agentState}
                     externalOpenState={isAgentOpen}
                     setExternalOpenState={setIsAgentOpen}
+                    onTraceUpdate={setAgentTraces}
+                    onActivityChange={setIsAgentActive}
                 />
 
                 {/* MAIN WORKSPACE */}
@@ -152,16 +162,10 @@ function App() {
 
                         {activeWorkspace === 'fleet' && (
                             <div className="animate-in fade-in zoom-in-95 duration-500 h-full flex flex-col">
-                                <div className="flex items-center gap-4 mb-8">
-                                    <div className="p-3 bg-slate-800/50 rounded-xl border border-white/10 text-rose-400 shadow-lg"><Monitor className="w-6 h-6" /></div>
-                                    <div>
-                                        <h2 className="text-2xl font-bold text-white tracking-tight">Global Fleet Monitor</h2>
-                                        <p className="text-sm text-slate-400">Real-time Telemetry & Health Status</p>
-                                    </div>
+                                <div className="flex-1 h-full -m-6">
+                                    <FleetApp />
                                 </div>
-                                <div className="flex-1">
-                                    <FleetMonitor />
-                                </div>
+
                             </div>
                         )}
 

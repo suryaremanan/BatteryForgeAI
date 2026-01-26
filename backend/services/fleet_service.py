@@ -11,6 +11,12 @@ class FleetService:
         self.current_stats = self._generate_physics_fleet(scenario="normal")
         self.commander_report = None
         self.last_update = datetime.now()
+        
+        # Extended Fleet State (Phase 6)
+        self.vehicles = self._init_vehicles()
+        self.drivers = self._init_drivers()
+        self.routes = []
+        self.charging_schedules = []
 
     def _generate_physics_fleet(self, scenario: str = "normal"):
         """
@@ -100,8 +106,81 @@ class FleetService:
     def get_current_data(self):
         return {
             "data": self.current_stats,
-            "commander_report": self.commander_report
+            "commander_report": self.commander_report,
+            "vehicles": self.vehicles,
+            "drivers": self.drivers,
+            "routes": self.routes,
+            "schedules": self.charging_schedules
         }
+
+    def _init_vehicles(self):
+        """Initialize with some mock vehicles usually found in frontend."""
+        return [
+            {"id": "EV-001", "model": "Tesla Model 3", "status": "moving", "soc": 82, "temp": 44, "driver_id": "DR-001"},
+            {"id": "EV-002", "model": "Chevy Bolt", "status": "maintenance", "soc": 74, "temp": 46, "driver_id": None},
+            {"id": "EV-003", "model": "Ford F-150 Lightning", "status": "idle", "soc": 64, "temp": 21, "driver_id": "DR-003"},
+            {"id": "EV-004", "model": "Tesla Model Y", "status": "maintenance", "soc": 61, "temp": 45, "driver_id": None},
+            {"id": "EV-005", "model": "Tesla Model Y", "status": "idle", "soc": 84, "temp": 34, "driver_id": "DR-005"},
+            {"id": "EV-006", "model": "Chevy Bolt", "status": "charging", "soc": 31, "temp": 29, "driver_id": None},
+            {"id": "EV-007", "model": "Rivian R1T", "status": "idle", "soc": 82, "temp": 45, "driver_id": "DR-007"},
+            {"id": "EV-008", "model": "Tesla Model 3", "status": "charging", "soc": 55, "temp": 35, "driver_id": "DR-008"},
+            {"id": "EV-009", "model": "Rivian R1T", "status": "maintenance", "soc": 82, "temp": 49, "driver_id": None},
+            {"id": "EV-010", "model": "Rivian R1T", "status": "maintenance", "soc": 88, "temp": 42, "driver_id": None},
+        ]
+
+    def _init_drivers(self):
+        """Initialize with some mock drivers."""
+        return [
+            {"id": "DR-001", "name": "John Smith", "status": "active", "vehicle_id": "EV-001"},
+            {"id": "DR-003", "name": "Mike Davis", "status": "active", "vehicle_id": "EV-003"},
+            {"id": "DR-005", "name": "Chris Brown", "status": "active", "vehicle_id": "EV-005"},
+            {"id": "DR-007", "name": "David Martinez", "status": "active", "vehicle_id": "EV-007"},
+            {"id": "DR-008", "name": "Lisa Anderson", "status": "active", "vehicle_id": "EV-008"},
+        ]
+
+    def add_vehicle(self, model: str, license_plate: str):
+        new_id = f"EV-{len(self.vehicles) + 11:03d}"
+        vehicle = {
+            "id": new_id,
+            "model": model,
+            "license_plate": license_plate,
+            "status": "idle",
+            "soc": 100,
+            "temp": 25,
+            "driver_id": None
+        }
+        self.vehicles.append(vehicle)
+        return vehicle
+
+    def add_driver(self, name: str, license_number: str):
+        new_id = f"DR-{len(self.drivers) + 11:03d}"
+        driver = {
+            "id": new_id,
+            "name": name,
+            "license_number": license_number,
+            "status": "available",
+            "vehicle_id": None
+        }
+        self.drivers.append(driver)
+        return driver
+
+    def update_vehicle_status(self, vehicle_id: str, status: str):
+        for v in self.vehicles:
+            if v["id"] == vehicle_id:
+                v["status"] = status
+                return v
+        return None
+
+    def assign_driver(self, vehicle_id: str, driver_id: str):
+        # Unassign previous
+        for v in self.vehicles:
+            if v["id"] == vehicle_id:
+                v["driver_id"] = driver_id
+        for d in self.drivers:
+            if d["id"] == driver_id:
+                d["vehicle_id"] = vehicle_id
+                d["status"] = "assigned"
+        return {"vehicle_id": vehicle_id, "driver_id": driver_id}
 
     async def update_simulation(self, scenario: str):
         """

@@ -13,3 +13,4 @@ pypdf
 matplotlib
 pandas
 scipy
+PyPDF2

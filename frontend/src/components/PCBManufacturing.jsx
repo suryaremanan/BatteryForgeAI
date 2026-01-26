@@ -685,45 +685,72 @@ const PCBManufacturing = () => {
                                                 {/* Main Result */}
                                                 <div className={`p-5 rounded-xl border ${visionResult.severity === 'FATAL'
                                                     ? 'bg-red-900/20 border-red-500/30'
-                                                    : visionResult.severity === 'REPAIRABLE'
+                                                    : visionResult.severity === 'CRITICAL' || visionResult.severity === 'REPAIRABLE'
                                                         ? 'bg-amber-900/20 border-amber-500/30'
                                                         : 'bg-emerald-900/20 border-emerald-500/30'
                                                     }`}>
-                                                    <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Detected Defect</div>
-                                                    <div className={`text-3xl font-bold mb-2 ${visionResult.severity === 'FATAL' ? 'text-red-400' :
-                                                        visionResult.severity === 'REPAIRABLE' ? 'text-amber-400' : 'text-emerald-400'
+                                                    <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Detect-Locate-Describe Analysis</div>
+                                                    <div className={`text-2xl font-bold mb-2 ${visionResult.severity === 'FATAL' ? 'text-red-400' :
+                                                        visionResult.severity === 'CRITICAL' || visionResult.severity === 'REPAIRABLE' ? 'text-amber-400' : 'text-emerald-400'
                                                         }`}>
-                                                        {visionResult.defect_type}
+                                                        {visionResult.defect_type || 'NORMAL'}
                                                     </div>
+
+                                                    {/* Location (LOCATE) */}
+                                                    {visionResult.location && (
+                                                        <div className="mb-3 p-2 bg-black/30 rounded text-xs">
+                                                            <span className="text-cyan-400 font-semibold">LOCATE: </span>
+                                                            <span className="text-slate-300">{visionResult.location}</span>
+                                                        </div>
+                                                    )}
+
                                                     <div className="flex items-center gap-2">
                                                         <div className="flex-1 bg-slate-700/50 rounded-full h-2">
                                                             <div
                                                                 className={`h-full rounded-full transition-all duration-1000 ${visionResult.severity === 'FATAL' ? 'bg-red-500' :
-                                                                    visionResult.severity === 'REPAIRABLE' ? 'bg-amber-500' : 'bg-emerald-500'
+                                                                    visionResult.severity === 'CRITICAL' || visionResult.severity === 'REPAIRABLE' ? 'bg-amber-500' : 'bg-emerald-500'
                                                                     }`}
-                                                                style={{ width: `${visionResult.confidence * 100}%` }}
+                                                                style={{ width: `${visionResult.confidence || (visionResult.confidence * 100)}%` }}
                                                             />
                                                         </div>
-                                                        <span className="text-sm text-slate-400">{Math.round(visionResult.confidence * 100)}%</span>
+                                                        <span className="text-sm text-slate-400">{visionResult.confidence || Math.round(visionResult.confidence * 100)}%</span>
                                                     </div>
                                                 </div>
 
+                                                {/* Description (DESCRIBE) */}
+                                                {visionResult.description && (
+                                                    <div className="p-4 bg-black/30 rounded-xl border border-white/5">
+                                                        <div className="text-xs text-slate-400 uppercase mb-2">Technical Analysis</div>
+                                                        <p className="text-sm text-slate-300 leading-relaxed">{visionResult.description}</p>
+                                                    </div>
+                                                )}
+
+                                                {/* Root Cause */}
+                                                {visionResult.root_cause && (
+                                                    <div className="p-3 bg-amber-900/10 rounded-lg border border-amber-500/20">
+                                                        <div className="text-xs text-amber-400 font-semibold mb-1">Root Cause</div>
+                                                        <p className="text-xs text-slate-300">{visionResult.root_cause}</p>
+                                                    </div>
+                                                )}
+
                                                 {/* Action Card */}
                                                 <div className="p-4 bg-black/30 rounded-xl border border-white/5">
-                                                    <div className="text-xs text-slate-500 uppercase mb-2">Recommended Action</div>
+                                                    <div className="text-xs text-slate-500 uppercase mb-2">Mitigation Action</div>
                                                     <div className="flex items-center gap-3">
                                                         {visionResult.severity === 'FATAL' ? (
                                                             <AlertCircle className="w-6 h-6 text-red-400" />
                                                         ) : (
                                                             <Settings className="w-6 h-6 text-amber-400" />
                                                         )}
-                                                        <span className="text-white font-semibold">{visionResult.recommended_action}</span>
+                                                        <span className="text-white font-semibold">{visionResult.mitigation || visionResult.recommended_action}</span>
                                                     </div>
                                                 </div>
                                             </>
                                         ) : (
-                                            <div className="h-full flex items-center justify-center text-slate-500">
-                                                Upload an image to analyze
+                                            <div className="h-full flex flex-col items-center justify-center text-slate-500 py-8">
+                                                <Eye className="w-12 h-12 mb-3 opacity-30" />
+                                                <p>Upload PCB image for analysis</p>
+                                                <p className="text-xs mt-1">Detect-Locate-Describe methodology</p>
                                             </div>
                                         )}
                                     </div>
@@ -732,10 +759,14 @@ const PCBManufacturing = () => {
 
                             {/* Defect Legend */}
                             <div className="bg-slate-900/60 backdrop-blur-xl p-4 rounded-2xl border border-white/10">
-                                <div className="flex items-center gap-6 justify-center text-sm">
+                                <div className="flex items-center gap-4 justify-center text-xs flex-wrap">
                                     <div className="flex items-center gap-2">
                                         <div className="w-3 h-3 rounded-full bg-red-500" />
                                         <span className="text-slate-400">FATAL (Scrap)</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 rounded-full bg-orange-500" />
+                                        <span className="text-slate-400">CRITICAL (Costly Repair)</span>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <div className="w-3 h-3 rounded-full bg-amber-500" />

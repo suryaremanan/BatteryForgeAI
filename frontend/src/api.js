@@ -252,3 +252,27 @@ export const generateCertificate = async (data) => {
     if (!response.ok) throw new Error('Certificate Generation failed');
     return response.json();
 };
+
+// --- RAG KNOWLEDGE BASE API ---
+
+export const uploadManual = async (pdfFile, onProgress) => {
+    const formData = new FormData();
+    formData.append('file', pdfFile);
+
+    const response = await fetch(`${API_BASE}/rag/upload-manual`, {
+        method: 'POST',
+        body: formData,
+    });
+
+    if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail || 'Manual upload failed');
+    }
+    return response.json();
+};
+
+export const listDocuments = async () => {
+    const response = await fetch(`${API_BASE}/rag/documents`);
+    if (!response.ok) throw new Error('Failed to list documents');
+    return response.json();
+};

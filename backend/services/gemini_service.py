@@ -63,27 +63,38 @@ class GeminiService:
 
     async def analyze_pcb_defect(self, image_data, mime_type="image/jpeg"):
         """
-        Phase 6: Real AI Vision for PCB Inspection.
-        Sends PCB image to Gemini 3.0 Pro for Open/Short classification.
+        PCB Defect Inspection using Detect-Locate-Describe Methodology.
+        Analyzes PCB images for manufacturing defects with spatial precision.
         """
         prompt = """
-        Act as a Senior PCB QA Engineer.
-        Analyze this PCB macro-image for manufacturing defects.
+        Act as 'PCB-VisionGPT', a specialized expert in PCB manufacturing defect detection.
+        Follow the 'Detect-Locate-Describe' methodology for comprehensive analysis:
         
-        Focus specifically on identifying:
-        1. Open Circuits (Fatal) - Broken tracks.
-        2. Short Circuits (Repairable) - Unwanted copper bridges.
-        3. Mouse Bites (Warning) - Uneven edges.
-        4. Solder Mask On Pads (Critical) - Mask covering solderable areas.
+        1. DETECT: Identify if any defect exists (Open Circuit, Short Circuit, Solder Mask Issues, Mouse Bites, Drilling Defects, Copper Delamination).
+        2. LOCATE: Pinpoint the specific region (e.g., 'trace between U1 pin 3 and R5', 'top-right quadrant near mounting hole', 'layer 2 signal trace').
+        3. DESCRIBE: Provide a detailed technical assessment of the defect mechanism and manufacturing impact.
         
-        Return JSON Object:
+        Analyze the attached PCB image.
+        Output a valid JSON object with:
+        - defect_type: (string) Classification of defect or 'NORMAL'.
+        - location: (string) Precise physical location of the defect on the PCB.
+        - severity: (string) 'FATAL' (scrappable), 'CRITICAL' (costly repair), 'REPAIRABLE' (standard repair), 'WARNING' (cosmetic/minor).
+        - confidence: (number) 0-100, your confidence in this assessment.
+        - description: (string) Detailed technical analysis following the Detect-Locate-Describe methodology. Explain the defect mechanism.
+        - mitigation: (string) Immediate action required: 'SCRAP', 'MANUAL_REPAIR', 'REWORK', 'AUTOMATED_REPAIR', 'ACCEPT_WITH_WAIVER', or 'NONE'.
+        - root_cause: (string) Likely manufacturing process failure (e.g., 'Etching over-exposure', 'Drill bit wear', 'Solder mask misalignment').
+        - bbox: (array) Approximate bounding box [x, y, width, height] in relative coordinates [0-100] if defect is visually localizable, otherwise null.
+        
+        Example Output:
         {
-            "defect_type": "OPEN_CIRCUIT" | "SHORT_CIRCUIT" | "SOLDER_MASK_ON_PAD" | "NORMAL",
-            "confidence": 0.95, // Number 0-1
-            "severity": "FATAL" | "REPAIRABLE" | "WARNING",
-            "recommended_action": "SCRAP" | "MANUAL_REPAIR" | "STRIP_AND_RECOAT" | "NONE",
-            "description": "Found a 0.5mm break in the signal trace near U1.",
-            "bbox": [x, y, w, h] // Approximate relative coordinates [0-100] if visually localizable
+            "defect_type": "OPEN_CIRCUIT",
+            "location": "Signal trace between IC1 pin 7 and resistor R12, top copper layer, X=45mm Y=23mm",
+            "severity": "FATAL",
+            "confidence": 94,
+            "description": "DETECT: Open circuit detected. LOCATE: 0.8mm gap in 0.2mm wide signal trace on top layer. DESCRIBE: Complete electrical discontinuity caused by chemical etching over-exposure. The trace width reduced from nominal 0.2mm to 0mm at failure point. This will prevent signal propagation and render the board non-functional.",
+            "mitigation": "SCRAP",
+            "root_cause": "Chemical etching process exceeded target removal rate by approximately 30%, likely due to high etchant concentration or extended dwell time",
+            "bbox": [42, 18, 8, 6]
         }
         """
         try:

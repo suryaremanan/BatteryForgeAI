@@ -6,7 +6,10 @@ from google.adk.agents import LlmAgent
 from ..tools.fleet_tools import (
     get_fleet_status,
     control_charging_rate,
-    send_operator_alert
+    send_operator_alert,
+    add_vehicle,
+    add_driver,
+    assign_driver
 )
 from ..tools.simulation_tools import simulate_fleet_scenario
 from ..tools.reporting_tools import generate_fleet_report
@@ -69,6 +72,9 @@ fleet_agent = LlmAgent(
         control_charging_rate,
         simulate_fleet_scenario,
         send_operator_alert,
-        generate_fleet_report
+        generate_fleet_report,
+        add_vehicle,
+        add_driver,
+        assign_driver
     ]
 )

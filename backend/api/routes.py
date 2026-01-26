@@ -95,6 +95,37 @@ async def rag_query_endpoint(request: RAGRequest):
     results = rag_service.search(request.query)
     return {"results": results}
 
+@router.post("/rag/upload-manual")
+async def upload_manual_endpoint(file: UploadFile = File(...)):
+    """
+    Upload battery manual/datasheet PDF for RAG knowledge base.
+    Automatically extracts text, chunks, generates metadata, and indexes in ChromaDB.
+    """
+    if not file.content_type == "application/pdf":
+        raise HTTPException(status_code=400, detail="File must be a PDF")
+    
+    from services.pdf_ingestion_service import pdf_ingestion_service
+    
+    # Read PDF bytes
+    pdf_bytes = await file.read()
+    
+    # Ingest
+    result = await pdf_ingestion_service.ingest_pdf(pdf_bytes, file.filename)
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error", "Ingestion failed"))
+    
+    return result
+
+@router.get("/rag/documents")
+async def list_documents_endpoint():
+    """
+    List all documents in the RAG knowledge base.
+    """
+    from services.pdf_ingestion_service import pdf_ingestion_service
+    documents = pdf_ingestion_service.list_ingested_documents()
+    return {"documents": documents, "total": len(documents)}
+
 class ChatRequest(BaseModel):
     message: str
     history: list = [] # List of {"role": "user"|"model", "parts": [...]}
@@ -389,6 +420,33 @@ async def simulate_fleet_scenario(request: SimulationRequest):
     from services.fleet_service import fleet_service
     success = await fleet_service.update_simulation(request.scenario)
     return {"status": "Simulation Applied", "scenario": request.scenario, "success": success}
+
+class AddVehicleRequest(BaseModel):
+    model: str
+    license_plate: str
+
+@router.post("/fleet/vehicle")
+async def add_vehicle_endpoint(request: AddVehicleRequest):
+    from services.fleet_service import fleet_service
+    return fleet_service.add_vehicle(request.model, request.license_plate)
+
+class AddDriverRequest(BaseModel):
+    name: str
+    license_number: str
+
+@router.post("/fleet/driver")
+async def add_driver_endpoint(request: AddDriverRequest):
+    from services.fleet_service import fleet_service
+    return fleet_service.add_driver(request.name, request.license_number)
+
+class AssignDriverRequest(BaseModel):
+    vehicle_id: str
+    driver_id: str
+
+@router.post("/fleet/assign")
+async def assign_driver_endpoint(request: AssignDriverRequest):
+    from services.fleet_service import fleet_service
+    return fleet_service.assign_driver(request.vehicle_id, request.driver_id)
 
 # --- PROCESS AUTOMATION ROUTES (Added Phase 1) ---
 

@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, User, Bot, Sparkles, Book, Mic, Activity, AlertTriangle, Shield, CheckCircle, Clock } from 'lucide-react';
+import { Send, User, Bot, Sparkles, Book, Mic, Activity, AlertTriangle, Shield, CheckCircle, Clock, Upload, Paperclip } from 'lucide-react';
 import { sendChatMessage, queryRAG } from '../api';
+import KnowledgeBaseManager from './KnowledgeBaseManager';
+import { useWorkspace } from '../context/WorkspaceContext';
 
 const AgentTrace = ({ trace }) => {
     if (!trace || trace.length === 0) return null;
@@ -25,7 +27,7 @@ const AgentTrace = ({ trace }) => {
     );
 };
 
-const ChatInterface = ({ onAction, agentState, externalOpenState, setExternalOpenState }) => {
+const ChatInterface = ({ onAction, agentState, externalOpenState, setExternalOpenState, onTraceUpdate, onActivityChange }) => {
     // Fallback if not controlled externally
     const [localIsOpen, setLocalIsOpen] = useState(false);
 
@@ -40,6 +42,7 @@ const ChatInterface = ({ onAction, agentState, externalOpenState, setExternalOpe
     const [loading, setLoading] = useState(false);
     const [ragContext, setRagContext] = useState(null);
     const [activeWorkflow, setActiveWorkflow] = useState(null);
+    const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
     const messagesEndRef = useRef(null);
 
     const scrollToBottom = () => {
@@ -58,6 +61,9 @@ const ChatInterface = ({ onAction, agentState, externalOpenState, setExternalOpe
         // Optimistic UI update
         setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
         setLoading(true);
+
+        // Activate agent trace
+        if (onActivityChange) onActivityChange(true);
 
         try {
             // 1. RAG Check (Lightweight)
@@ -80,6 +86,18 @@ const ChatInterface = ({ onAction, agentState, externalOpenState, setExternalOpe
             // 3. Send to Agent System
             // Now returns rich object: { response, actions, trace, agent_mode }
             const result = await sendChatMessage(userMsg, messages, agentState, null);
+
+            // Update agent trace panel with real data
+            if (result.trace && result.trace.length > 0 && onTraceUpdate) {
+                const formattedTraces = result.trace.map((step, idx) => ({
+                    agent: step.agent || 'unknown',
+                    agent_name: step.agent_name || step.agent,
+                    action: step.action || step.message || 'Processing...',
+                    tools: step.tools || [],
+                    timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                }));
+                onTraceUpdate(formattedTraces);
+            }
 
             // Handle Actions
             if (result.actions) {
@@ -116,6 +134,7 @@ const ChatInterface = ({ onAction, agentState, externalOpenState, setExternalOpe
             setActiveWorkflow(null);
         } finally {
             setLoading(false);
+            if (onActivityChange) onActivityChange(false);
         }
     };
 
@@ -213,6 +232,25 @@ const ChatInterface = ({ onAction, agentState, externalOpenState, setExternalOpe
                 </div>
             </div>
 
+            {/* Knowledge Base Panel */}
+            {showKnowledgeBase && (
+                <div className="border-b border-slate-800 p-4 bg-slate-950/80 max-h-96 overflow-y-auto">
+                    <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+                            <Upload className="w-4 h-4" />
+                            Upload Battery Manuals
+                        </h4>
+                        <button
+                            onClick={() => setShowKnowledgeBase(false)}
+                            className="text-slate-400 hover:text-white text-sm"
+                        >
+                            ✕
+                        </button>
+                    </div>
+                    <KnowledgeBaseManager />
+                </div>
+            )}
+
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {messages.map((msg, idx) => (
@@ -261,6 +299,15 @@ const ChatInterface = ({ onAction, agentState, externalOpenState, setExternalOpe
                     placeholder="Ask about maintenance, codes, or safety..."
                     className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
                 />
+
+                <button
+                    type="button"
+                    onClick={() => setShowKnowledgeBase(!showKnowledgeBase)}
+                    className={`p-2 ${showKnowledgeBase ? 'bg-indigo-600' : 'bg-slate-700 hover:bg-slate-600'} text-white rounded-lg transition-colors border ${showKnowledgeBase ? 'border-indigo-500' : 'border-slate-600'}`}
+                    title="Upload Battery Manuals (PDFs)"
+                >
+                    {showKnowledgeBase ? <Book className="w-5 h-5" /> : <Paperclip className="w-5 h-5" />}
+                </button>
 
                 <button
                     type="button"

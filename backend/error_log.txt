@@ -179,3 +179,141 @@ TypeError: AgingService.generate_aging_curve() got an unexpected keyword argumen
     data = aging_service.generate_aging_curve(current_cycle=800)
 TypeError: AgingService.generate_aging_curve() got an unexpected keyword argument 'current_cycle'
 
+
+[2026-01-24 10:39:07.964594] Error: Traceback (most recent call last):
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/api/routes.py", line 116, in chat_endpoint
+    result = await agent_service.chat(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/agent_service.py", line 96, in chat
+    return await self._run_fallback_agent(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/agent_service.py", line 199, in _run_fallback_agent
+    response = chat.send_message([message])
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/generative_models.py", line 578, in send_message
+    response = self.model.generate_content(
+        contents=history,
+    ...<5 lines>...
+        request_options=request_options,
+    )
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/generative_models.py", line 317, in generate_content
+    self._client = client.get_default_generative_client()
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/client.py", line 360, in get_default_generative_client
+    return _client_manager.get_default_client("generative")
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/client.py", line 289, in get_default_client
+    client = self.make_client(name)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/client.py", line 249, in make_client
+    raise e
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/client.py", line 241, in make_client
+    client = cls(**self.client_config)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/ai/generativelanguage_v1beta/services/generative_service/client.py", line 667, in __init__
+    self._transport = transport_init(
+                      ~~~~~~~~~~~~~~^
+        credentials=credentials,
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<7 lines>...
+        api_audience=self._client_options.api_audience,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/ai/generativelanguage_v1beta/services/generative_service/transports/grpc.py", line 235, in __init__
+    super().__init__(
+    ~~~~~~~~~~~~~~~~^
+        host=host,
+        ^^^^^^^^^^
+    ...<6 lines>...
+        api_audience=api_audience,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/ai/generativelanguage_v1beta/services/generative_service/transports/base.py", line 100, in __init__
+    credentials, _ = google.auth.default(
+                     ~~~~~~~~~~~~~~~~~~~^
+        **scopes_kwargs, quota_project_id=quota_project_id
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/auth/_default.py", line 752, in default
+    raise exceptions.DefaultCredentialsError(_CLOUD_SDK_MISSING_CREDENTIALS)
+google.auth.exceptions.DefaultCredentialsError: 
+  No API_KEY or ADC found. Please either:
+    - Set the `GOOGLE_API_KEY` environment variable.
+    - Manually pass the key with `genai.configure(api_key=my_api_key)`.
+    - Or set up Application Default Credentials, see https://ai.google.dev/gemini-api/docs/oauth for more information.
+
+
+[2026-01-24 10:40:17.224083] Error: Traceback (most recent call last):
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/api/routes.py", line 116, in chat_endpoint
+    result = await agent_service.chat(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/agent_service.py", line 96, in chat
+    return await self._run_fallback_agent(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/agent_service.py", line 199, in _run_fallback_agent
+    response = chat.send_message([message])
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/generative_models.py", line 578, in send_message
+    response = self.model.generate_content(
+        contents=history,
+    ...<5 lines>...
+        request_options=request_options,
+    )
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/generative_models.py", line 317, in generate_content
+    self._client = client.get_default_generative_client()
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/client.py", line 360, in get_default_generative_client
+    return _client_manager.get_default_client("generative")
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/client.py", line 289, in get_default_client
+    client = self.make_client(name)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/client.py", line 249, in make_client
+    raise e
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/client.py", line 241, in make_client
+    client = cls(**self.client_config)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/ai/generativelanguage_v1beta/services/generative_service/client.py", line 667, in __init__
+    self._transport = transport_init(
+                      ~~~~~~~~~~~~~~^
+        credentials=credentials,
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<7 lines>...
+        api_audience=self._client_options.api_audience,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/ai/generativelanguage_v1beta/services/generative_service/transports/grpc.py", line 235, in __init__
+    super().__init__(
+    ~~~~~~~~~~~~~~~~^
+        host=host,
+        ^^^^^^^^^^
+    ...<6 lines>...
+        api_audience=api_audience,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/ai/generativelanguage_v1beta/services/generative_service/transports/base.py", line 100, in __init__
+    credentials, _ = google.auth.default(
+                     ~~~~~~~~~~~~~~~~~~~^
+        **scopes_kwargs, quota_project_id=quota_project_id
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/auth/_default.py", line 752, in default
+    raise exceptions.DefaultCredentialsError(_CLOUD_SDK_MISSING_CREDENTIALS)
+google.auth.exceptions.DefaultCredentialsError: 
+  No API_KEY or ADC found. Please either:
+    - Set the `GOOGLE_API_KEY` environment variable.
+    - Manually pass the key with `genai.configure(api_key=my_api_key)`.
+    - Or set up Application Default Credentials, see https://ai.google.dev/gemini-api/docs/oauth for more information.
+
