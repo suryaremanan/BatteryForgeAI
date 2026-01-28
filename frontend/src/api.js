@@ -177,9 +177,12 @@ export const predictLamination = async (params) => {
     return response.json();
 };
 
-export const classifyPCB = async (file) => {
+export const classifyPCB = async (file, referenceFile = null) => {
     const formData = new FormData();
     formData.append('file', file);
+    if (referenceFile) {
+        formData.append('reference_file', referenceFile);
+    }
     const response = await fetch(`${API_BASE}/vision/classify`, {
         method: 'POST',
         body: formData,
@@ -187,6 +190,8 @@ export const classifyPCB = async (file) => {
     if (!response.ok) throw new Error('Defect Classification failed');
     return response.json();
 };
+
+
 
 export const inspectMask = async (panelId) => {
     const response = await fetch(`${API_BASE}/vision/inspect-mask/${panelId}`);
@@ -274,5 +279,159 @@ export const uploadManual = async (pdfFile, onProgress) => {
 export const listDocuments = async () => {
     const response = await fetch(`${API_BASE}/rag/documents`);
     if (!response.ok) throw new Error('Failed to list documents');
+    return response.json();
+};
+// --- PCB PHASE 2 ROUTES (Advanced Features) ---
+
+export const generateSchematic = async (specs, conversationHistory = null) => {
+    const payload = { specs };
+    if (conversationHistory) {
+        payload.conversation_history = conversationHistory;
+    }
+    const response = await fetch(`${API_BASE}/design/generate-schematic`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error('Schematic Gen failed');
+    return response.json();
+};
+
+export const exploreDesignRoute = async (gridParams) => {
+    const response = await fetch(`${API_BASE}/design/explore-design`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(gridParams),
+    });
+    if (!response.ok) throw new Error('RL Routing failed');
+    return response.json();
+};
+
+export const parseDatasheet = async (file, constraints = null) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (constraints) {
+        formData.append('constraints', JSON.stringify(constraints));
+    }
+    const response = await fetch(`${API_BASE}/design/parse-datasheet`, {
+        method: 'POST',
+        body: formData,
+    });
+    if (!response.ok) throw new Error('Datasheet Parsing failed');
+    return response.json();
+};
+
+export const analyzeXRay = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${API_BASE}/vision/xray-analysis`, {
+        method: 'POST',
+        body: formData,
+    });
+    if (!response.ok) throw new Error('X-Ray Analysis failed');
+    return response.json();
+};
+
+export const inspectAOI = async (file, referenceFile = null) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (referenceFile) {
+        formData.append('reference_file', referenceFile);
+    }
+    const response = await fetch(`${API_BASE}/vision/aoi-inspect`, {
+        method: 'POST',
+        body: formData,
+    });
+    if (!response.ok) throw new Error('AOI Inspection failed');
+    return response.json();
+};
+
+export const analyzeMaintenanceSignals = async (payload) => {
+    const response = await fetch(`${API_BASE}/maintenance/analyze-signals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error('Signal Analysis failed');
+    return response.json();
+};
+
+export const predictToolLife = async (payload) => {
+    const response = await fetch(`${API_BASE}/maintenance/tool-life`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error('Tool Life Prediction failed');
+    return response.json();
+};
+
+// --- ENHANCED MAINTENANCE API ---
+
+export const getFleetStatus = async () => {
+    const response = await fetch(`${API_BASE}/maintenance/fleet-status`);
+    if (!response.ok) throw new Error('Failed to get fleet status');
+    return response.json();
+};
+
+export const getDrillInventory = async () => {
+    const response = await fetch(`${API_BASE}/maintenance/drill-inventory`);
+    if (!response.ok) throw new Error('Failed to get drill inventory');
+    return response.json();
+};
+
+export const analyzeThermal = async (params) => {
+    const response = await fetch(`${API_BASE}/maintenance/thermal-analysis`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+    });
+    if (!response.ok) throw new Error('Thermal analysis failed');
+    return response.json();
+};
+
+export const scheduleMaintenance = async (params) => {
+    const response = await fetch(`${API_BASE}/maintenance/schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+    });
+    if (!response.ok) throw new Error('Failed to schedule maintenance');
+    return response.json();
+};
+
+export const getAnomalyHistory = async () => {
+    const response = await fetch(`${API_BASE}/maintenance/anomaly-history`);
+    if (!response.ok) throw new Error('Failed to get anomaly history');
+    return response.json();
+};
+
+export const checkSupplyRisk = async (bom) => {
+    const response = await fetch(`${API_BASE}/supply/risk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bom }),
+    });
+    if (!response.ok) throw new Error('Supply Risk Check failed');
+    return response.json();
+};
+
+export const forecastInventory = async (payload) => {
+    const response = await fetch(`${API_BASE}/supply/forecast`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error('Inventory Forecast failed');
+    return response.json();
+};
+
+export const controlProcessLoop = async (payload) => {
+    const response = await fetch(`${API_BASE}/process/control-loop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error('Process Control Loop failed');
     return response.json();
 };

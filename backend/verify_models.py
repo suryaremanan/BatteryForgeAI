@@ -15,10 +15,29 @@ print("Listing available models...")
 
 with open("models_log.txt", "w") as f:
     try:
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                f.write(f"{m.name}\n")
-                print(f"- {m.name}")
+        models = [m.name for m in genai.list_models()]
+        
+        required_models = [
+            "gemini-3-pro",
+            "gemini-3-flash"
+        ]
+        
+        print("Available Models:")
+        for m in models:
+            f.write(f"{m}\n")
+            print(f"- {m}")
+            
+        print("\nVerifying Requirement Compliance:")
+        for req in required_models:
+            # Flexible matching for preview/exp versions
+            match = next((m for m in models if req in m or req.replace("-", ".") in m), None)
+            if match:
+                msg = f"✅ {req} FOUND as {match}"
+            else:
+                msg = f"⚠️ {req} NOT FOUND (Ensure you have access or use aliases)"
+            print(msg)
+            f.write(msg + "\n")
+
     except Exception as e:
         msg = f"Error listing models: {e}"
         print(msg)

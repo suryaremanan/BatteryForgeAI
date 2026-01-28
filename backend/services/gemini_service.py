@@ -12,8 +12,10 @@ class GeminiService:
     def __init__(self):
         # Using Gemini 3 Pro Preview (Hackathon Compliant)
         self.vision_model = genai.GenerativeModel('models/gemini-3-pro-preview')
-        # Using Gemini 3 Pro Preview for deep reasoning
-        self.flash_model = genai.GenerativeModel('models/gemini-3-pro-preview')
+        # Using Gemini 3 Flash for high-speed tasks
+        self.flash_model = genai.GenerativeModel('models/gemini-3-flash-preview')
+        # Using Gemini 3 Pro for reasoning (Deep Think fallback per user request)
+        self.reasoning_model = genai.GenerativeModel('models/gemini-3-pro-preview')
 
     def _sanitize_for_json(self, obj):
         """Recursively converts NumPy types to Python native types for JSON serialization."""
@@ -792,5 +794,509 @@ class GeminiService:
         )
         
         return agent_model.start_chat(history=history, enable_automatic_function_calling=True)
+
+
+    # ==========================================
+    # FEATURE 1: Automated Design & Engineering (Gemini 3 Deep Think)
+    # ==========================================
+    
+    async def generate_pcb_design_critique(self, design_specs: str, conversation_history: list = None):
+        """
+        Requirement-to-Schematic Generator (Gemini 3 Pro - Reasoning).
+        Acts as an "Engineering Intern" — asks clarifying questions if critical info is missing,
+        then generates a preliminary design plan/block diagram.
+        """
+        try:
+            history_context = ""
+            if conversation_history:
+                history_context = "\n\nPrevious Conversation:\n"
+                for turn in conversation_history:
+                    role = turn.get("role", "user")
+                    content = turn.get("content", "")
+                    history_context += f"  {role}: {content}\n"
+
+            prompt = f"""
+            Act as a Lead PCB Design Engineer functioning as an "Engineering Intern".
+
+            IMPORTANT BEHAVIOR:
+            - First, evaluate if the input specifications contain enough critical information to produce a reliable design.
+            - Critical information includes: cell configuration, voltage levels, max current, key interfaces, form factor, thermal constraints, and power budget.
+            - If ANY critical information is missing or ambiguous, you MUST return clarifying questions INSTEAD of a full design plan.
+            - Only generate the full design plan when you have sufficient information (either from the initial specs or from the conversation history).
+            {history_context}
+
+            Current Input Specifications:
+            "{design_specs}"
+
+            Context & Standards:
+            - Applied Standards: IPC-2221 (Generic Design), IPC-7351 (Land Pattern), IPC-2152 (Current Carrying Capacity).
+            - Goal: "Shift-Left" verification to catch EMI/SI/PI issues early.
+
+            DECISION:
+            - If information is INSUFFICIENT, return JSON with clarifying_questions.
+            - If information is SUFFICIENT, return JSON with the full design_plan.
+
+            Response Format (Insufficient Info):
+            {{
+                "status": "needs_clarification",
+                "clarifying_questions": [
+                    "What is the cell configuration (e.g., 4S, 6S)?",
+                    "What is the maximum continuous current requirement?",
+                    "Are there specific communication interfaces needed (I2C, SPI, CAN)?"
+                ],
+                "understood_so_far": "BMS design with LiPo chemistry"
+            }}
+
+            Response Format (Sufficient Info):
+            {{
+                "status": "design_ready",
+                "design_plan": {{
+                    "blocks": ["Power Management (Buck Converter)", "MCU (USB-C support)", "Analog Front End"],
+                    "interconnections": ["USB-C -> PMIC -> MCU", "Sensor -> AFE -> MCU"]
+                }},
+                "component_recommendations": [
+                    {{ "function": "USB-C Controller", "spec": "PD 3.0 support", "verify": "Check 50-ohm differential pair routing" }}
+                ],
+                "constraint_definitions": [
+                    "Trace Width: Calculate per IPC-2152 for temp rise < 10C",
+                    "Differential pairs: 90 ohm impedance matched (+- 10%)",
+                    "Keep switching regulators > 20mm from AFE (EMI mitigation)"
+                ]
+            }}
+            """
+            response = self.reasoning_model.generate_content(prompt)
+            return self._extract_json(response.text)
+        except Exception as e:
+            return {"error": str(e)}
+
+    async def explore_design_space(self, grid_state: dict):
+        """
+        Reinforcement Learning for PCB Routing (Gemini 3 Pro - Agent Logic).
+        Simulates an RL agent predicting the optimal next step for a trace on a grid.
+        
+        Input:
+            grid_state: {
+                "grid_size": [10, 10],
+                "obstacles": [[2,2], [2,3]],
+                "start": [0,0],
+                "target": [9,9],
+                "current_head": [4,4]
+            }
+        """
+        try:
+            prompt = f"""
+            Act as a Reinforcement Learning Agent for PCB Auto-Routing.
+            Objective: Route trace from Start to Target minimizing vias and length, avoiding obstacles.
+            
+            Current State:
+            {json.dumps(grid_state)}
+            
+            Rules:
+            - Move Up, Down, Left, Right.
+            - Reward: +1 for getting closer, -10 for collision.
+            
+            Predict the OPTIMAL next move.
+            
+            Return JSON:
+            {{
+                "next_move": [4, 5],
+                "action": "MOVE_RIGHT",
+                "confidence": 0.95,
+                "reasoning": "Avoids obstacle at [2,2], moves towards target [9,9]. Heuristic distance decreases."
+            }}
+            """
+            response = self.reasoning_model.generate_content(prompt)
+            return self._extract_json(response.text)
+        except Exception as e:
+            return {"error": str(e)}
+
+    async def parse_component_datasheet(self, file_content, mime_type="application/pdf", design_constraints: dict = None):
+        """
+        Intelligent Datasheet Parsing & Component Selection (Gemini 3 Pro - Multimodal).
+        Parses component datasheets (PDF/Image) to extract electrical specs for BOM validation.
+        Optionally cross-references against design constraints.
+        """
+        try:
+            constraints_section = ""
+            if design_constraints:
+                constraints_section = f"""
+
+            ADDITIONAL TASK - Design Constraint Verification:
+            Cross-reference the extracted specs against these design constraints:
+            {json.dumps(design_constraints, indent=2)}
+
+            For each constraint, verify if the component meets it. For example:
+            - "Is Vin_max > required voltage?"
+            - "Is max current sufficient for the design?"
+            - "Does the thermal resistance allow safe operation at ambient temp?"
+
+            Add a "constraint_check" field to your response with pass/fail for each constraint.
+            """
+
+            prompt = f"""
+            Act as a Senior PCB Component Engineer (Gemini 3 Pro).
+            Analyze this component datasheet (PDF/Image).
+
+            Task:
+            1. Identify the Component (Part Number, Manufacturer, Description).
+            2. Extract Key Electrical Parameters (Voltage, Max Current, Logic Levels).
+            3. Extract Thermal Limits (T_junction, Thermal Resistance).
+            4. Extract Pin Configuration Table.
+            {constraints_section}
+
+            Return JSON for BOM Tool:
+            {{
+                "component_info": {{
+                    "part_number": "LM7805",
+                    "manufacturer": "TI",
+                    "description": "5V Linear Regulator"
+                }},
+                "electrical_specs": {{
+                    "input_voltage_max": "35V",
+                    "output_current_max": "1.5A",
+                    "dropout_voltage": "2.0V"
+                }},
+                "thermal_specs": {{
+                    "max_junction_temp": "125C",
+                    "package_thermal_resistance": "50 C/W (TO-220)"
+                }},
+                "pin_configuration": [
+                    {{"pin": 1, "name": "INPUT", "function": "Vin"}},
+                    {{"pin": 2, "name": "GND", "function": "Ground"}},
+                    {{"pin": 3, "name": "OUTPUT", "function": "Vout"}}
+                ],
+                "compliance": {{
+                    "rohs": true,
+                    "automotive_qualified": false
+                }},
+                "constraint_check": [
+                    {{"constraint": "Vin_max > 24V", "result": "PASS", "detail": "Vin_max is 35V > 24V"}},
+                    {{"constraint": "Iout_max >= 2A", "result": "FAIL", "detail": "Iout_max is 1.5A < 2A"}}
+                ]
+            }}
+            """
+
+            # Gemini 3 Pro Multimodal Input
+            response = await self.reasoning_model.generate_content_async([
+                prompt,
+                {"mime_type": mime_type, "data": file_content}
+            ])
+            return self._extract_json(response.text)
+        except Exception as e:
+            return {"error": str(e)}
+
+    # ==========================================
+    # FEATURE 2: Intelligent Quality Control (Gemini 3 Pro)
+    # ==========================================
+
+    async def analyze_production_defect(self, image_data, mime_type="image/jpeg", reference_image_data=None):
+        """
+        AI-Powered Defect Classification (Gemini 3 Pro - Vision).
+        Distinguishes between harmless cosmetic variations and fatal functional defects.
+        Optionally uses a 'Golden Sample' reference to filter false positives.
+        """
+        try:
+            comparison_context = ""
+            images = [{"mime_type": mime_type, "data": image_data}]
+            
+            if reference_image_data:
+                comparison_context = """
+                COMPARISON MODE:
+                You are provided with TWO images.
+                1. Test Image (Potential Defect)
+                2. Reference Image (Golden Sample / Known Good)
+
+                Task: Compare the Test Image against the Reference Image to filter out noise.
+                - If a "defect" in the Test Image is also present in the Reference (e.g., a specific silk screen mark), it is NOT a defect.
+                - Only flag deviations.
+                """
+                images.append({"mime_type": mime_type, "data": reference_image_data})
+
+            prompt = f"""
+            Act as a Senior SMT Vision Inspector (Gemini 3 Pro).
+            Analyze this high-resolution manufacturing image of a PCB or electronic assembly.
+            {comparison_context}
+            
+            Task:
+            1. Detect defects: Solder bridges, solder voids, cold joints, tombstoning, missing components, component misalignment, scratches, delamination.
+            2. FILTER FALSE POSITIVES: Identify and exclude harmless cosmetic variations (laser marking glare, silk screen irregularities, flux residue that does not affect function). Report how many false positives were filtered.
+            3. Classify Severity: FATAL (Open Circuit / Short Circuit / Missing Component) vs COSMETIC (Acceptable per IPC-A-610 Class 2).
+            4. Provide a recommended action for each real defect.
+            5. If possible, provide bounding box [ymin, xmin, ymax, xmax] (0-1000 scale) for the primary defect.
+            
+            Return JSON:
+            {{
+                "defects_found": [
+                    {{ "type": "Solder Bridge", "severity": "FATAL", "location": "U1 Pin 3-4", "confidence": 98, "action": "Rework required — reflow and wick excess solder", "bbox": [500, 200, 550, 250] }},
+                    {{ "type": "Flux Residue", "severity": "COSMETIC", "location": "R5 area", "confidence": 82, "action": "IGNORE — no functional impact" }}
+                ],
+                "verdict": "FAIL",
+                "summary": "1 fatal defect found requiring rework. 1 cosmetic issue acceptable per IPC-A-610.",
+                "fatal_count": 1,
+                "cosmetic_count": 1,
+                "false_positives_filtered": 2,
+                "inspection_standard": "IPC-A-610 Class 2"
+            }}
+            """
+            
+            # Prepend prompt to images list
+            content = [prompt] + images
+
+            response = await self.vision_model.generate_content_async(content)
+            return self._extract_json(response.text)
+        except Exception as e:
+            return {"error": str(e)}
+
+    async def analyze_xray_inspection(self, image_data, mime_type="image/jpeg"):
+        """
+        X-Ray Analysis for Multilayer inspection (Gemini 3 Pro).
+        Detects hidden defects like BGA voids, barrel distortion, misalignment.
+        """
+        try:
+            prompt = """
+            Act as an AXI (Automated X-ray Inspection) Expert.
+            Analyze this X-ray slice of a BGA component.
+            
+            Check for:
+            1. Head-in-Pillow (HiP) defects.
+            2. Voids > 25% of ball area.
+            3. Via Barrel Distortion (wobble in vertical drill hole walls).
+            4. Layer Misalignment / Pad Offset.
+            
+            Return JSON:
+            {
+                "inspection_type": "3D AXI",
+                "bga_analysis": {
+                    "voids_found": true,
+                    "max_void_percentage": 15.0,
+                    "status": "PASS"
+                },
+                "layer_alignment": {
+                    "misalignment_um": 5,
+                    "status": "GOOD",
+                    "barrel_distortion_detected": false
+                },
+                "anomalies": ["Minor voiding on Ball A5 (within IPC limits)"]
+            }
+            """
+            response = await self.vision_model.generate_content_async([
+                prompt,
+                {"mime_type": mime_type, "data": image_data}
+            ])
+            return self._extract_json(response.text)
+        except Exception as e:
+            return {"error": str(e)}
+
+    # ==========================================
+    # FEATURE 3: Predictive Maintenance (Gemini 3 Flash)
+    # ==========================================
+
+    async def analyze_maintenance_signals(self, sensor_payload: dict):
+        """
+        Vibration & Sound Anomaly Detection (Gemini 3 Flash).
+        Classifies equipment state based on FFT frequency peaks or time-domain stats.
+        Input: { "machine_id": "Drill-01", "fft_peaks": [{"freq": 1200, "amp": 0.5}], "rms_vibration": 1.2 }
+        """
+        try:
+            prompt = f"""
+            Act as a Predictive Maintenance Expert.
+            Analyze processed sensor features (FFT/Vibration) for CNC machines.
+            
+            Data:
+            {json.dumps(sensor_payload)}
+            
+            Match signatures:
+            - High amp > 1kHz -> Bearing Wear
+            - Low freq (10-50Hz) wobbly -> Loose Belt
+            - Spindle Runout -> Harmonics of RPM
+            
+            Return JSON:
+            {{
+                "health_status": "WARNING",
+                "diagnosis": "Early Stage Bearing Wear",
+                "confidence": 0.89,
+                "maintenance_window": "Schedule within 7 days",
+                "signatures_detected": ["1.2kHz harmonic peak"]
+            }}
+            """
+            response = self.flash_model.generate_content(prompt)
+            return self._extract_json(response.text)
+        except Exception as e:
+            return {"error": str(e)}
+
+    async def predict_tool_life(self, tool_logs: dict):
+        """
+        Predictive Tool Replacement Scheduling (Gemini 3 Flash).
+        Forecasts probability of breakage.
+        Input: { "hits": 5000, "resin_smear_level": "medium", "feed_rate_deviation": 0.05 }
+        """
+        try:
+            prompt = f"""
+            Act as a Tooling Life Analyst.
+            Analyze drill bit usage logs to predict Remaining Useful Life (RUL).
+
+            Logs: {json.dumps(tool_logs)}
+
+            Physics: High resin smear + feed deviation = dull bit -> high breakage risk.
+
+            Return JSON:
+            {{
+                "rul_hits": 250,
+                "breakage_probability_percent": 65,
+                "action": "CHANGE_TOOL_NOW" | "CONTINUE",
+                "reason": "Resin smear indicates thermal degradation."
+            }}
+            """
+            response = self.flash_model.generate_content(prompt)
+            return self._extract_json(response.text)
+        except Exception as e:
+            return {"error": str(e)}
+
+    async def analyze_thermal_health(self, thermal_data: dict):
+        """
+        AI-Powered Thermal Analysis for CNC Spindle/Motor Health (Gemini 3 Flash).
+        Analyzes temperature patterns to predict bearing failures and recommend actions.
+        Input: { "machine_id": "CNC-DRILL-01", "spindle_temp_c": 72, "ambient_temp_c": 25, "load_percent": 85 }
+        """
+        try:
+            prompt = f"""
+            Act as a CNC Machine Thermal Analyst Expert.
+            Analyze the spindle/motor thermal data to assess machine health.
+
+            Data:
+            {json.dumps(thermal_data)}
+
+            Analysis Guidelines:
+            - Normal spindle temp: 40-60°C at 80% load
+            - Warning threshold: 65-75°C (increased bearing wear rate)
+            - Critical threshold: >75°C (immediate attention required)
+            - Temperature rise rate matters: sudden spikes indicate lubrication issues
+            - Ambient-adjusted delta: (spindle_temp - ambient) at given load
+
+            Diagnose potential issues:
+            1. Bearing lubrication degradation
+            2. Coolant system malfunction
+            3. Excessive cutting load
+            4. Belt tension issues (indirect heating)
+
+            Return JSON:
+            {{
+                "thermal_status": "WARNING" | "NORMAL" | "CRITICAL",
+                "temperature_delta_c": 47,
+                "expected_delta_c": 35,
+                "deviation_percent": 34,
+                "diagnosis": "Elevated spindle temperature suggests bearing lubrication degradation",
+                "risk_factors": ["High load operation", "Extended runtime without cooldown"],
+                "recommended_actions": [
+                    "Schedule bearing inspection within 48 hours",
+                    "Reduce spindle RPM by 10% until inspection",
+                    "Check coolant flow rate and concentration"
+                ],
+                "estimated_time_to_failure_hours": 200,
+                "confidence": 0.82
+            }}
+            """
+            response = self.flash_model.generate_content(prompt)
+            return self._extract_json(response.text)
+        except Exception as e:
+            return {"error": str(e)}
+
+    # ==========================================
+    # FEATURE 4: Supply Chain Resilience (Gemini 3 Pro)
+    # ==========================================
+
+    async def monitor_supply_risk(self, components: list):
+        """
+        Dynamic BOM Optimization & Risk Sensing (Gemini 3 Pro).
+        Analyzes BOM for geopolitical risks/obsolescence.
+        """
+        try:
+            prompt = f"""
+            Act as a Supply Chain Intelligence Agent.
+            Analyze this BOM List for risks (Geopolitical, End-of-Life, Sole-Source).
+            
+            Components: {json.dumps(components)}
+            
+            Assumption: You have access to a knowledge base of component origins (simulated).
+            
+            Return JSON:
+            {{
+                "high_risk_components": [
+                    {{ "part": "IC-XYZ", "risk_factor": "Geopolitical Instability in Region A", "score": 90 }}
+                ],
+                "alternatives": [
+                    {{ "for": "IC-XYZ", "suggestion": "IC-ABC (Domestically sourced)" }}
+                ]
+            }}
+            """
+            response = self.vision_model.generate_content(prompt)
+            return self._extract_json(response.text)
+        except Exception as e:
+            return {"error": str(e)}
+
+    async def forecast_inventory(self, usage_data: dict):
+        """
+        Material Inventory Forecasting (Gemini 3 Flash).
+        Predicts shortages of critical raw materials (laminates, copper).
+        Input: { "material": "Copper Foil 1oz", "usage_rate_per_day": 50, "lead_time_days": 14, "market_trend": "Shortage" }
+        """
+        try:
+            prompt = f"""
+            Act as an Inventory Planner.
+            Forecast demand and buffer stock.
+            
+            Data: {json.dumps(usage_data)}
+            
+            Task: Calculate strategic buffer stock (e.g., 45-60 days) if market trend is 'Shortage'.
+            
+            Return JSON:
+            {{
+                "material": "Copper Foil 1oz",
+                "recommended_order_qty": 5000,
+                "days_of_coverage": 60,
+                "urgency": "HIGH - Market Shortage Impact"
+            }}
+            """
+            response = self.flash_model.generate_content(prompt)
+            return self._extract_json(response.text)
+        except Exception as e:
+            return {"error": str(e)}
+
+    # ==========================================
+    # FEATURE 5: Smart Process Control (Gemini 3 Flash)
+    # ==========================================
+
+    async def analyze_process_control_loop(self, sensor_readings: dict):
+        """
+        Adaptive Etching and Lamination Control (Gemini 3 Flash).
+        Real-time Closed-Loop Feedback.
+        Input: { "process": "Etching", "ph_level": 3.2, "copper_thickness_removed": 15um, "target": 18um }
+        """
+        try:
+            prompt = f"""
+            Act as a Process Control System (Gemini 3 Flash).
+            Analyze real-time sensor feedback and recommend PLC parameter adjustments.
+            
+            Data: {json.dumps(sensor_readings)}
+            
+            Logic:
+            - If under-etching (removed < target): Decrease conveyor speed OR Increase spray pressure.
+            - If over-etching: Increase speed.
+            
+            Return JSON:
+            {{
+                "status": "Under-Etching Detected",
+                "adjustment_command": {{
+                    "parameter": "conveyor_speed",
+                    "action": "DECREASE",
+                    "value_delta_percent": -5
+                }},
+                "safety_lock": false
+            }}
+            """
+            response = self.flash_model.generate_content(prompt)
+            return self._extract_json(response.text)
+        except Exception as e:
+            return {"error": str(e)}
 
 gemini_service = GeminiService()

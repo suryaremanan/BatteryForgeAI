@@ -26,7 +26,11 @@ class VisionService:
         
         if "image_data" in image_metadata:
              # REAL AI PATH
-             result = await gemini_service.analyze_pcb_defect(image_metadata["image_data"], image_metadata.get("mime_type", "image/jpeg"))
+             result = await gemini_service.analyze_production_defect(
+                 image_metadata["image_data"], 
+                 image_metadata.get("mime_type", "image/jpeg"),
+                 reference_image_data=image_metadata.get("reference_image_data")
+             )
              
              # Map Gemini result to our internal schema if needed (or just pass through)
              # The implementations match closely.

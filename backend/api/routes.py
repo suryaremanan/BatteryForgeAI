@@ -505,7 +505,7 @@ async def predict_scaling(request: LaminationRequest):
 # --- VISION ROUTES (Added Phase 3) ---
 
 @router.post("/vision/classify")
-async def vision_classify(file: UploadFile = File(...)):
+async def vision_classify(file: UploadFile = File(...), reference_file: Optional[UploadFile] = File(None)):
     from services.vision_service import vision_service
     from services.storage_service import storage_service
     
@@ -514,11 +514,15 @@ async def vision_classify(file: UploadFile = File(...)):
     
     # Read image bytes for AI
     image_bytes = await file.read()
+    reference_bytes = None
+    if reference_file:
+         reference_bytes = await reference_file.read()
     
     metadata = {
         "filename": file.filename, 
         "image_data": image_bytes,
-        "mime_type": file.content_type
+        "mime_type": file.content_type,
+        "reference_image_data": reference_bytes
     }
     return await vision_service.classify_defect(metadata)
 

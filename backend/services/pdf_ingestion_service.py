@@ -12,6 +12,8 @@ from typing import List, Dict
 import google.generativeai as genai
 import hashlib
 from datetime import datetime
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 class PDFIngestionService:
     def __init__(self):
@@ -50,13 +52,13 @@ class PDFIngestionService:
             return "\n\n".join(text_content)
             
         except ImportError:
-            # Fallback: Use Gemini Vision to read PDF
-            return self._extract_with_gemini(pdf_bytes, filename)
+            print("PyPDF2 not installed.")
+            return None
         except Exception as e:
-            print(f"PyPDF2 extraction failed: {e}, trying Gemini...")
-            return self._extract_with_gemini(pdf_bytes, filename)
+            print(f"PyPDF2 extraction failed: {e}")
+            return None
     
-    def _extract_with_gemini(self, pdf_bytes: bytes, filename: str) -> str:
+    async def _extract_with_gemini(self, pdf_bytes: bytes, filename: str) -> str:
         """
         Fallback: Use Gemini 3 to read PDF (multimodal)
         """
@@ -69,7 +71,7 @@ class PDFIngestionService:
             Return the full text in a structured format.
             """
             
-            response = model.generate_content([
+            response = await model.generate_content_async([
                 prompt,
                 {"mime_type": "application/pdf", "data": pdf_bytes}
             ])
@@ -122,7 +124,7 @@ class PDFIngestionService:
         
         return chunks
     
-    def generate_metadata_with_gemini(self, text_sample: str, filename: str) -> Dict:
+    async def generate_metadata_with_gemini(self, text_sample: str, filename: str) -> Dict:
         """
         Use Gemini to extract metadata from document
         
@@ -154,7 +156,7 @@ class PDFIngestionService:
             }}
             """
             
-            response = model.generate_content(prompt)
+            response = await model.generate_content_async(prompt)
             
             # Extract JSON
             import json
@@ -192,14 +194,27 @@ class PDFIngestionService:
         try:
             # 1. Extract text
             print(f"Extracting text from {filename}...")
-            full_text = self.extract_text_from_pdf(pdf_bytes, filename)
+            # Run CPU-bound PyPDF2 in a thread pool
+            loop = asyncio.get_event_loop()
+            try:
+                full_text = await loop.run_in_executor(None, self.extract_text_from_pdf, pdf_bytes, filename)
+            except Exception:
+                 # Fallback to Gemini if PyPDF2 fails (handled in extract_text_from_pdf but we want the async gemini path if that was the fallback logic)
+                 # Revisiting extract_text_from_pdf: it calls _extract_with_gemini as fallback. 
+                 # Since _extract_with_gemini is now async, we need to handle that.
+                 # Let's Refactor extract_text_from_pdf to be purely sync PyPDF2, and handle fallback here.
+                 full_text = None
+
+            if not full_text:
+                 # If sync extraction failed or returned nothing, try async Gemini
+                 full_text = await self._extract_with_gemini(pdf_bytes, filename)
             
             if not full_text or len(full_text) < 50:
                 raise Exception("Insufficient text content extracted")
             
             # 2. Generate metadata
             print(f"Generating metadata...")
-            metadata = self.generate_metadata_with_gemini(full_text, filename)
+            metadata = await self.generate_metadata_with_gemini(full_text, filename)
             
             # 3. Chunk document
             print(f"Chunking document...")

@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import os
 
 from api.routes import router as api_router
+from api.pcb_routes import router as pcb_router
 
 load_dotenv()
 
@@ -18,6 +19,7 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix="/api")
+app.include_router(pcb_router, prefix="/api")
 
 @app.get("/")
 async def root():

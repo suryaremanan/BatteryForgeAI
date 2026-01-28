@@ -317,3 +317,55 @@ google.auth.exceptions.DefaultCredentialsError:
     - Manually pass the key with `genai.configure(api_key=my_api_key)`.
     - Or set up Application Default Credentials, see https://ai.google.dev/gemini-api/docs/oauth for more information.
 
+
+[2026-01-28 08:45:19.723420] Error: Traceback (most recent call last):
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/api/routes.py", line 147, in chat_endpoint
+    result = await agent_service.chat(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/agent_service.py", line 96, in chat
+    return await self._run_fallback_agent(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/agent_service.py", line 199, in _run_fallback_agent
+    response = chat.send_message([message])
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/generative_models.py", line 591, in send_message
+    self.history, content, response = self._handle_afc(
+                                      ~~~~~~~~~~~~~~~~^
+        response=response,
+        ^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+        request_options=request_options,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/generative_models.py", line 647, in _handle_afc
+    fr = tools_lib(fc)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/types/content_types.py", line 881, in __call__
+    response = declaration(fc)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/google/generativeai/types/content_types.py", line 641, in __call__
+    result = self.function(**fc.args)
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/gemini_service.py", line 611, in tool_search_knowledge_base
+    from services.rag_service import rag_service
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/services/rag_service.py", line 4, in <module>
+    import chromadb
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/chromadb/__init__.py", line 8, in <module>
+    from chromadb.auth.token_authn import TokenTransportHeader
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/chromadb/auth/token_authn/__init__.py", line 24, in <module>
+    from chromadb.telemetry.opentelemetry import (
+    ...<2 lines>...
+    )
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/chromadb/telemetry/opentelemetry/__init__.py", line 13, in <module>
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/opentelemetry/exporter/otlp/proto/grpc/trace_exporter/__init__.py", line 25, in <module>
+    from opentelemetry.exporter.otlp.proto.grpc.exporter import (  # noqa: F401
+    ...<4 lines>...
+    )
+  File "/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/opentelemetry/exporter/otlp/proto/grpc/exporter.py", line 83, in <module>
+    from opentelemetry.sdk._logs import ReadableLogRecord
+ImportError: cannot import name 'ReadableLogRecord' from 'opentelemetry.sdk._logs' (/home/suryaremanan/Documents/gemini-hackathon/BatteryForgeAI/backend/venv/lib/python3.13/site-packages/opentelemetry/sdk/_logs/__init__.py)
+
