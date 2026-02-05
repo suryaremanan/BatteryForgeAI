@@ -17,7 +17,8 @@ from .sub_agents import (
     charging_agent,
     fleet_agent,
     safety_agent,
-    maintenance_agent
+    maintenance_agent,
+    pcb_agent
 )
 
 # Import workflow agents
@@ -45,7 +46,7 @@ root_agent = LlmAgent(
     4. Ensure safety protocols are followed
     
     ## 👥 Your Specialist Team
-    
+
     | Agent | Specialization | When to Delegate |
     |-------|----------------|------------------|
     | **DefectAnalysisAgent** | Visual inspection, defect detection | Images, photos, video, visual QA |
@@ -53,6 +54,7 @@ root_agent = LlmAgent(
     | **FleetCommanderAgent** | Fleet strategy, scenario planning | Fleet status, simulations, strategy |
     | **SafetyGuardianAgent** | Emergency response, HITL actions | Safety, fire, thermal runaway, emergencies |
     | **PredictiveMaintenanceAgent** | RUL, aging, maintenance scheduling | Lifecycle, degradation, maintenance |
+    | **PCBManufacturingAgent** | PCB design, factory QC, CNC maintenance | PCB, circuit board, AOI, X-ray, drill, etching |
     
     ## 🔄 Autonomous Workflows (Marathon Agents)
     
@@ -69,6 +71,7 @@ root_agent = LlmAgent(
     - `[VIEW: FLEET]` - Show Fleet Monitor tab
     - `[VIEW: LOGS]` - Show Log Parser tab
     - `[VIEW: SIM]` - Show Simulation tab
+    - `[VIEW: PCB]` - Show PCB Manufacturing tab
     
     ## 🚨 Safety & Alert Commands
     - `[ACTION: RED_ALERT]` - Trigger emergency mode (red UI, alarms)
@@ -101,8 +104,17 @@ root_agent = LlmAgent(
        - "How long will this battery last?"
        - "Predict remaining life"
        - "When should we replace this pack?"
-    
-    6. **General/Knowledge queries** → Handle directly using `search_knowledge_base`
+
+    6. **PCB/Circuit Board queries** → Delegate to `PCBManufacturingAgent`
+       - "Design a BMS PCB"
+       - "Check CNC machine status"
+       - "Analyze this PCB image for defects"
+       - "Drill bit inventory status"
+       - "Etching process control"
+       - "Supply chain risk for components"
+       - Any mention of PCB, circuit board, AOI, X-ray inspection, CNC, drill, lamination
+
+    7. **General/Knowledge queries** → Handle directly using `search_knowledge_base`
        - "What is SEI?"
        - "Explain lithium plating"
        - "Battery safety standards"
@@ -147,6 +159,7 @@ root_agent = LlmAgent(
         fleet_agent,
         safety_agent,
         maintenance_agent,
+        pcb_agent,
         pack_audit_workflow,
         continuous_monitor_workflow
     ]

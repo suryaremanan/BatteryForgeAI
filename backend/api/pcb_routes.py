@@ -3,8 +3,107 @@ from pydantic import BaseModel
 from typing import List, Optional
 from services.gemini_service import gemini_service
 import json
+import base64
 
 router = APIRouter()
+
+
+# --- PCB AGENTIC CHAT ---
+
+class PCBChatRequest(BaseModel):
+    message: str
+    session_id: Optional[str] = "pcb_default"
+    history: Optional[List[dict]] = None
+    image_base64: Optional[str] = None  # Base64 encoded image
+    image_mime_type: Optional[str] = "image/jpeg"
+
+
+@router.post("/pcb/chat")
+async def pcb_agent_chat(request: PCBChatRequest):
+    """
+    Agentic PCB Manufacturing Chat Endpoint.
+    Routes messages to the PCB Manufacturing Agent which autonomously
+    decides which tools to use based on the user's query.
+
+    The agent can:
+    - Generate PCB designs from specs
+    - Analyze AOI/X-ray images for defects
+    - Check CNC fleet and drill inventory status
+    - Predict tool life and maintenance needs
+    - Analyze supply chain risks
+    - Control etching/lamination processes
+    """
+    try:
+        from services.agent_service import agent_service
+
+        result = await agent_service.chat_pcb(
+            message=request.message,
+            session_id=request.session_id or "pcb_default",
+            history=request.history,
+            image_base64=request.image_base64,
+            image_mime_type=request.image_mime_type
+        )
+
+        return {
+            "response": result.get("response", "No response generated"),
+            "data": result.get("data"),
+            "tool_calls": result.get("tool_calls", []),
+            "trace": result.get("trace", []),
+            "actions": result.get("actions", []),
+            "agent_mode": result.get("agent_mode", "unknown"),
+            "session_id": result.get("session_id", request.session_id)
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            "response": f"I encountered an error: {str(e)}",
+            "error": str(e),
+            "agent_mode": "error"
+        }
+
+
+@router.post("/pcb/chat/image")
+async def pcb_agent_chat_with_image(
+    message: str = Form(...),
+    session_id: str = Form("pcb_default"),
+    file: UploadFile = File(...)
+):
+    """
+    PCB Agent Chat with image upload.
+    Use this endpoint when sending PCB images for AOI/X-ray inspection.
+    """
+    try:
+        from services.agent_service import agent_service
+
+        # Read and encode image
+        image_bytes = await file.read()
+        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+
+        result = await agent_service.chat_pcb(
+            message=message,
+            session_id=session_id,
+            image_base64=image_base64,
+            image_mime_type=file.content_type or "image/jpeg"
+        )
+
+        return {
+            "response": result.get("response", "No response generated"),
+            "data": result.get("data"),
+            "tool_calls": result.get("tool_calls", []),
+            "trace": result.get("trace", []),
+            "actions": result.get("actions", []),
+            "agent_mode": result.get("agent_mode", "unknown"),
+            "session_id": result.get("session_id", session_id)
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            "response": f"I encountered an error: {str(e)}",
+            "error": str(e),
+            "agent_mode": "error"
+        }
 
 # --- DESIGN & ENGINEERING ---
 
@@ -90,38 +189,129 @@ class ToolLifeRequest(BaseModel):
 async def predict_tool(request: ToolLifeRequest):
     return await gemini_service.predict_tool_life(request.model_dump())
 
-# --- ENHANCED MAINTENANCE ENDPOINTS ---
+# --- PACK ASSEMBLY LINE MONITORING ---
 
 @router.get("/maintenance/fleet-status")
 async def get_fleet_status():
-    """Get real-time status of all CNC machines in the fleet."""
+    """Get real-time status of battery pack assembly line stations."""
     import random
-    # Simulated fleet data - in production this would come from PLC/SCADA
-    machines = [
-        {"id": "CNC-DRILL-01", "type": "CNC Drill", "status": "RUNNING", "uptime_hours": 1247, "current_job": "PCB-2024-0892", "spindle_rpm": 42000, "spindle_temp_c": 58, "vibration_rms": round(random.uniform(0.8, 1.5), 2), "last_maintenance": "2024-01-15"},
-        {"id": "CNC-DRILL-02", "type": "CNC Drill", "status": "RUNNING", "uptime_hours": 892, "current_job": "PCB-2024-0893", "spindle_rpm": 38000, "spindle_temp_c": 52, "vibration_rms": round(random.uniform(0.6, 1.2), 2), "last_maintenance": "2024-01-20"},
-        {"id": "CNC-DRILL-03", "type": "CNC Drill", "status": "WARNING", "uptime_hours": 2105, "current_job": "PCB-2024-0891", "spindle_rpm": 40000, "spindle_temp_c": 72, "vibration_rms": round(random.uniform(1.8, 2.5), 2), "last_maintenance": "2023-12-10"},
-        {"id": "CNC-ROUTER-01", "type": "CNC Router", "status": "RUNNING", "uptime_hours": 560, "current_job": "PCB-2024-0894", "spindle_rpm": 24000, "spindle_temp_c": 45, "vibration_rms": round(random.uniform(0.5, 0.9), 2), "last_maintenance": "2024-01-25"},
-        {"id": "CNC-ROUTER-02", "type": "CNC Router", "status": "IDLE", "uptime_hours": 1580, "current_job": None, "spindle_rpm": 0, "spindle_temp_c": 28, "vibration_rms": 0.0, "last_maintenance": "2024-01-18"},
-        {"id": "LASER-DRILL-01", "type": "Laser Drill", "status": "RUNNING", "uptime_hours": 3200, "current_job": "PCB-2024-0890", "spindle_rpm": 0, "spindle_temp_c": 35, "vibration_rms": round(random.uniform(0.2, 0.5), 2), "last_maintenance": "2024-01-22"},
+    # Simulated assembly line data - in production this would come from PLC/SCADA
+    stations = [
+        {
+            "id": "STATION-CELL-SORT",
+            "name": "Cell Sorting & Grading",
+            "type": "Cell Processing",
+            "status": "RUNNING",
+            "throughput_pph": 120,
+            "current_batch": "BATCH-2024-0892",
+            "cell_grade_distribution": {"A": 0.85, "B": 0.12, "C": 0.03},
+            "yield_rate": 0.97,
+            "uptime_hours": 1247,
+            "spindle_temp_c": 28,
+            "last_maintenance": "2024-01-15"
+        },
+        {
+            "id": "STATION-STACK",
+            "name": "Module Stacking",
+            "type": "Assembly",
+            "status": "RUNNING",
+            "throughput_pph": 45,
+            "current_batch": "BATCH-2024-0892",
+            "stack_alignment_error_mm": round(random.uniform(0.1, 0.5), 2),
+            "modules_completed_today": 342,
+            "uptime_hours": 892,
+            "spindle_temp_c": 32,
+            "last_maintenance": "2024-01-20"
+        },
+        {
+            "id": "STATION-WELD",
+            "name": "Tab Welding (Laser)",
+            "type": "Welding",
+            "status": "WARNING",
+            "throughput_pph": 40,
+            "current_batch": "BATCH-2024-0892",
+            "laser_power_kw": 2.5,
+            "weld_strength_n": round(random.uniform(45, 55), 1),
+            "reject_rate": 0.02,
+            "alert": "Laser focus drift detected - recalibration due",
+            "uptime_hours": 2105,
+            "spindle_temp_c": 72,
+            "last_maintenance": "2023-12-10"
+        },
+        {
+            "id": "STATION-BUSBAR",
+            "name": "Busbar Assembly",
+            "type": "Assembly",
+            "status": "RUNNING",
+            "throughput_pph": 38,
+            "current_batch": "BATCH-2024-0892",
+            "torque_applied_nm": round(random.uniform(8.5, 9.5), 1),
+            "connections_per_pack": 48,
+            "uptime_hours": 560,
+            "spindle_temp_c": 35,
+            "last_maintenance": "2024-01-25"
+        },
+        {
+            "id": "STATION-TIM",
+            "name": "Thermal Interface Application",
+            "type": "Thermal",
+            "status": "IDLE",
+            "throughput_pph": 42,
+            "current_batch": None,
+            "tim_coverage_pct": 0,
+            "dispense_volume_ml": 0,
+            "uptime_hours": 1580,
+            "spindle_temp_c": 25,
+            "last_maintenance": "2024-01-18"
+        },
+        {
+            "id": "STATION-EOL",
+            "name": "End-of-Line Test",
+            "type": "Testing",
+            "status": "RUNNING",
+            "throughput_pph": 30,
+            "current_batch": "BATCH-2024-0891",
+            "tests": ["OCV", "IR", "HIPOT", "LEAK", "CAN_COMM"],
+            "pass_rate": 0.985,
+            "packs_tested_today": 218,
+            "uptime_hours": 3200,
+            "spindle_temp_c": 28,
+            "last_maintenance": "2024-01-22"
+        }
     ]
-    return {"machines": machines, "total": len(machines), "running": sum(1 for m in machines if m["status"] == "RUNNING"), "warnings": sum(1 for m in machines if m["status"] == "WARNING")}
+    return {
+        "machines": stations,
+        "line_efficiency": 0.87,
+        "daily_target": 500,
+        "daily_actual": 435,
+        "shift": "Day Shift A",
+        "total": len(stations),
+        "running": sum(1 for s in stations if s["status"] == "RUNNING"),
+        "warnings": sum(1 for s in stations if s["status"] == "WARNING")
+    }
 
 @router.get("/maintenance/drill-inventory")
 async def get_drill_inventory():
-    """Get status of all drill bits in inventory."""
+    """Get cell inventory status for battery pack assembly."""
     import random
-    drills = [
-        {"id": "DRL-0.3-001", "diameter_mm": 0.3, "hits": 8500, "max_hits": 10000, "status": "WARNING", "resin_smear": "high", "location": "CNC-DRILL-01"},
-        {"id": "DRL-0.3-002", "diameter_mm": 0.3, "hits": 2100, "max_hits": 10000, "status": "OK", "resin_smear": "low", "location": "CNC-DRILL-02"},
-        {"id": "DRL-0.4-001", "diameter_mm": 0.4, "hits": 9200, "max_hits": 12000, "status": "WARNING", "resin_smear": "medium", "location": "CNC-DRILL-03"},
-        {"id": "DRL-0.4-002", "diameter_mm": 0.4, "hits": 500, "max_hits": 12000, "status": "OK", "resin_smear": "none", "location": "STORAGE"},
-        {"id": "DRL-0.5-001", "diameter_mm": 0.5, "hits": 11800, "max_hits": 15000, "status": "OK", "resin_smear": "low", "location": "CNC-DRILL-01"},
-        {"id": "DRL-0.5-002", "diameter_mm": 0.5, "hits": 14500, "max_hits": 15000, "status": "CRITICAL", "resin_smear": "high", "location": "CNC-DRILL-02"},
-        {"id": "DRL-0.8-001", "diameter_mm": 0.8, "hits": 4200, "max_hits": 20000, "status": "OK", "resin_smear": "none", "location": "CNC-DRILL-03"},
-        {"id": "DRL-1.0-001", "diameter_mm": 1.0, "hits": 18000, "max_hits": 25000, "status": "OK", "resin_smear": "low", "location": "CNC-ROUTER-01"},
+    cells = [
+        {"id": "NMC-21700-50E-A", "sku": "NMC-21700-50E", "vendor": "Samsung SDI", "qty": 12500, "status": "OK", "grade": "A", "capacity_ah": 5.0, "voltage_nominal": 3.6, "location": "CELL-STORAGE-A1"},
+        {"id": "NMC-21700-50E-B", "sku": "NMC-21700-50E", "vendor": "Samsung SDI", "qty": 1200, "status": "OK", "grade": "B", "capacity_ah": 4.8, "voltage_nominal": 3.6, "location": "CELL-STORAGE-A2"},
+        {"id": "LFP-280AH-CATL", "sku": "LFP-280AH-CATL", "vendor": "CATL", "qty": 450, "status": "WARNING", "grade": "A", "capacity_ah": 280, "voltage_nominal": 3.2, "min_qty": 500, "location": "CELL-STORAGE-B1"},
+        {"id": "NCA-18650-35E", "sku": "NCA-18650-35E", "vendor": "Samsung SDI", "qty": 8000, "status": "OK", "grade": "A", "capacity_ah": 3.5, "voltage_nominal": 3.6, "location": "CELL-STORAGE-C1"},
+        {"id": "LFP-100AH-EVE", "sku": "LFP-100AH-EVE", "vendor": "EVE Energy", "qty": 620, "status": "OK", "grade": "A", "capacity_ah": 100, "voltage_nominal": 3.2, "location": "CELL-STORAGE-B2"},
+        {"id": "NMC-POUCH-60AH", "sku": "NMC-POUCH-60AH", "vendor": "LG Chem", "qty": 180, "status": "CRITICAL", "grade": "A", "capacity_ah": 60, "voltage_nominal": 3.7, "min_qty": 200, "location": "CELL-STORAGE-D1"},
+        {"id": "NMC-21700-50G", "sku": "NMC-21700-50G", "vendor": "Samsung SDI", "qty": 5500, "status": "OK", "grade": "A", "capacity_ah": 5.0, "voltage_nominal": 3.6, "location": "CELL-STORAGE-A3"},
+        {"id": "LFP-BLADE-138AH", "sku": "LFP-BLADE-138AH", "vendor": "BYD", "qty": 340, "status": "OK", "grade": "A", "capacity_ah": 138, "voltage_nominal": 3.2, "location": "CELL-STORAGE-B3"}
     ]
-    return {"drills": drills, "total": len(drills), "ok": sum(1 for d in drills if d["status"] == "OK"), "warning": sum(1 for d in drills if d["status"] == "WARNING"), "critical": sum(1 for d in drills if d["status"] == "CRITICAL")}
+    return {
+        "drills": cells,
+        "total": len(cells),
+        "ok": sum(1 for c in cells if c["status"] == "OK"),
+        "warning": sum(1 for c in cells if c["status"] == "WARNING"),
+        "critical": sum(1 for c in cells if c["status"] == "CRITICAL"),
+        "low_stock_alerts": sum(1 for c in cells if c["status"] in ["WARNING", "CRITICAL"])
+    }
 
 class ThermalAnalysisRequest(BaseModel):
     machine_id: str
@@ -157,13 +347,13 @@ async def schedule_maintenance(request: MaintenanceScheduleRequest):
 
 @router.get("/maintenance/anomaly-history")
 async def get_anomaly_history():
-    """Get historical anomaly events."""
+    """Get historical anomaly events from assembly line."""
     anomalies = [
-        {"timestamp": "2024-01-28T14:32:00", "machine_id": "CNC-DRILL-03", "type": "VIBRATION_SPIKE", "severity": "WARNING", "value": 2.8, "threshold": 2.0, "resolved": False},
-        {"timestamp": "2024-01-28T10:15:00", "machine_id": "CNC-DRILL-01", "type": "TEMP_HIGH", "severity": "INFO", "value": 68, "threshold": 70, "resolved": True},
-        {"timestamp": "2024-01-27T16:45:00", "machine_id": "CNC-DRILL-02", "type": "SPINDLE_RUNOUT", "severity": "WARNING", "value": 0.015, "threshold": 0.01, "resolved": True},
-        {"timestamp": "2024-01-27T09:20:00", "machine_id": "LASER-DRILL-01", "type": "POWER_FLUCTUATION", "severity": "INFO", "value": 4.2, "threshold": 5.0, "resolved": True},
-        {"timestamp": "2024-01-26T11:30:00", "machine_id": "CNC-ROUTER-01", "type": "TOOL_WEAR", "severity": "CRITICAL", "value": 95, "threshold": 85, "resolved": True},
+        {"timestamp": "2024-01-28T14:32:00", "machine_id": "STATION-WELD", "type": "LASER_FOCUS_DRIFT", "severity": "WARNING", "value": 0.15, "threshold": 0.1, "resolved": False, "description": "Laser focus position drifting - weld depth affected"},
+        {"timestamp": "2024-01-28T10:15:00", "machine_id": "STATION-EOL", "type": "HIPOT_FAIL_RATE", "severity": "INFO", "value": 2.1, "threshold": 3.0, "resolved": True, "description": "HIPOT failure rate slightly elevated"},
+        {"timestamp": "2024-01-27T16:45:00", "machine_id": "STATION-STACK", "type": "ALIGNMENT_ERROR", "severity": "WARNING", "value": 0.8, "threshold": 0.5, "resolved": True, "description": "Cell stack misalignment detected and corrected"},
+        {"timestamp": "2024-01-27T09:20:00", "machine_id": "STATION-TIM", "type": "DISPENSE_VOLUME", "severity": "INFO", "value": 14.2, "threshold": 15.0, "resolved": True, "description": "TIM dispense volume slightly low - nozzle cleaned"},
+        {"timestamp": "2024-01-26T11:30:00", "machine_id": "STATION-BUSBAR", "type": "TORQUE_DEVIATION", "severity": "CRITICAL", "value": 12.5, "threshold": 10.0, "resolved": True, "description": "Torque wrench calibration drift - recalibrated"},
     ]
     return {"anomalies": anomalies, "unresolved": sum(1 for a in anomalies if not a["resolved"])}
 
@@ -197,3 +387,51 @@ class ProcessLoopRequest(BaseModel):
 @router.post("/process/control-loop")
 async def control_loop(request: ProcessLoopRequest):
     return await gemini_service.analyze_process_control_loop(request.model_dump())
+
+# --- BATTERY FORMATION & WELDING ---
+
+class FormationProtocolRequest(BaseModel):
+    cell_chemistry: str  # "NMC", "LFP", "NCA", "LTO"
+    capacity_ah: float
+    ambient_temp: float = 25.0
+    target_cycles: int = 3
+
+@router.post("/process/formation-protocol")
+async def optimize_formation(request: FormationProtocolRequest):
+    """AI-powered formation cycling protocol optimization."""
+    return await gemini_service.optimize_formation_protocol(
+        request.cell_chemistry,
+        request.capacity_ah,
+        request.ambient_temp,
+        request.target_cycles
+    )
+
+class TabWeldingRequest(BaseModel):
+    material: str  # "nickel", "aluminum", "copper"
+    thickness_mm: float
+    weld_type: str = "laser"  # "laser" or "ultrasonic"
+
+@router.post("/process/tab-welding")
+async def optimize_tab_welding(request: TabWeldingRequest):
+    """AI-powered tab welding parameter optimization."""
+    return await gemini_service.optimize_tab_welding(
+        request.material,
+        request.thickness_mm,
+        request.weld_type
+    )
+
+class BatteryInspectionRequest(BaseModel):
+    inspection_type: str = "general"  # "weld", "pouch", "busbar", "thermal_paste", "general"
+
+@router.post("/vision/battery-inspect")
+async def inspect_battery_assembly(
+    file: UploadFile = File(...),
+    inspection_type: str = Form("general")
+):
+    """AI-powered battery assembly visual inspection."""
+    contents = await file.read()
+    return await gemini_service.inspect_battery_assembly(
+        contents,
+        file.content_type or "image/jpeg",
+        inspection_type
+    )

@@ -435,3 +435,126 @@ export const controlProcessLoop = async (payload) => {
     if (!response.ok) throw new Error('Process Control Loop failed');
     return response.json();
 };
+
+// --- BATTERY FORMATION & WELDING API ---
+
+export const optimizeFormationProtocol = async (chemistry, capacityAh, ambientTemp = 25, targetCycles = 3) => {
+    const response = await fetch(`${API_BASE}/process/formation-protocol`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            cell_chemistry: chemistry,
+            capacity_ah: capacityAh,
+            ambient_temp: ambientTemp,
+            target_cycles: targetCycles
+        }),
+    });
+    if (!response.ok) throw new Error('Formation Protocol Optimization failed');
+    return response.json();
+};
+
+export const optimizeTabWelding = async (material, thicknessMm, weldType = 'laser') => {
+    const response = await fetch(`${API_BASE}/process/tab-welding`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            material,
+            thickness_mm: thicknessMm,
+            weld_type: weldType
+        }),
+    });
+    if (!response.ok) throw new Error('Tab Welding Optimization failed');
+    return response.json();
+};
+
+export const inspectBatteryAssembly = async (file, inspectionType = 'general') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('inspection_type', inspectionType);
+
+    const response = await fetch(`${API_BASE}/vision/battery-inspect`, {
+        method: 'POST',
+        body: formData,
+    });
+    if (!response.ok) throw new Error('Battery Assembly Inspection failed');
+    return response.json();
+};
+
+// --- PCB AGENTIC CHAT API ---
+
+export const sendPCBChat = async (message, sessionId = 'pcb_default', history = null, imageBase64 = null, imageMimeType = 'image/jpeg') => {
+    const payload = {
+        message,
+        session_id: sessionId,
+        history: history,
+        image_base64: imageBase64,
+        image_mime_type: imageMimeType
+    };
+    const response = await fetch(`${API_BASE}/pcb/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error('PCB Agent Chat failed');
+    return response.json();
+};
+
+export const sendPCBChatWithImage = async (message, file, sessionId = 'pcb_default') => {
+    const formData = new FormData();
+    formData.append('message', message);
+    formData.append('session_id', sessionId);
+    formData.append('file', file);
+
+    const response = await fetch(`${API_BASE}/pcb/chat/image`, {
+        method: 'POST',
+        body: formData,
+    });
+    if (!response.ok) throw new Error('PCB Agent Chat with image failed');
+    return response.json();
+};
+
+// ============================================================
+// PHASE 3: FLEET ACTION EXECUTION API
+// ============================================================
+
+/**
+ * Execute a fleet action from chat interface
+ * @param {string} actionType - The type of action ('isolate_pack', 'control_charging', etc.)
+ * @param {object} parameters - Action-specific parameters
+ * @param {boolean} confirmed - Whether the user has confirmed critical actions
+ */
+export const executeFleetAction = async (actionType, parameters, confirmed = false) => {
+    const response = await fetch(`${API_BASE}/fleet/execute-action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            action_type: actionType,
+            parameters,
+            confirmed
+        }),
+    });
+    if (!response.ok) throw new Error('Fleet action execution failed');
+    return response.json();
+};
+
+/**
+ * Get live fleet data directly (for agent context)
+ */
+export const getFleetData = async () => {
+    const response = await fetch(`${API_BASE}/fleet/data`);
+    if (!response.ok) throw new Error('Failed to fetch fleet data');
+    return response.json();
+};
+
+/**
+ * Trigger fleet simulation scenario
+ */
+export const triggerFleetScenario = async (scenario) => {
+    const response = await fetch(`${API_BASE}/fleet/simulate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scenario }),
+    });
+    if (!response.ok) throw new Error('Fleet simulation failed');
+    return response.json();
+};

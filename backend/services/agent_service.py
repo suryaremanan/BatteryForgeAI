@@ -19,13 +19,15 @@ except ImportError:
     print("Warning: google-adk not installed. Using fallback agent.")
     ADK_AVAILABLE = False
 
-# Import the root agent
+# Import the root agent and sub-agents
 try:
-    from battery_forge_agent import root_agent
+    from battery_forge_agent import root_agent, pcb_agent
     AGENT_AVAILABLE = True
+    PCB_AGENT_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Could not import battery_forge_agent: {e}")
     AGENT_AVAILABLE = False
+    PCB_AGENT_AVAILABLE = False
 
 
 class AgentService:
@@ -33,18 +35,20 @@ class AgentService:
     Service layer for the BatteryForge AI Commander.
     Manages agent sessions and execution.
     """
-    
+
     def __init__(self):
         self.sessions: Dict[str, Any] = {}
         self.runner = None
+        self.pcb_runner = None  # Dedicated PCB agent runner
         self.session_service = None
         self._initialized = False
-        
+        self._pcb_initialized = False
+
     def _initialize(self):
         """Lazy initialization of ADK components."""
         if self._initialized:
             return
-            
+
         if ADK_AVAILABLE and AGENT_AVAILABLE:
             try:
                 self.session_service = InMemorySessionService()
@@ -62,6 +66,30 @@ class AgentService:
                 self._initialized = False
         else:
             print("⚠️ Running in fallback mode (ADK not available)")
+
+    def _initialize_pcb(self):
+        """Lazy initialization of PCB-specific ADK agent."""
+        if self._pcb_initialized:
+            return
+
+        if ADK_AVAILABLE and PCB_AGENT_AVAILABLE:
+            try:
+                if not self.session_service:
+                    self.session_service = InMemorySessionService()
+                # Create dedicated PCB runner
+                self.pcb_runner = Runner(
+                    agent=pcb_agent,
+                    session_service=self.session_service,
+                    app_name="BatteryForgePCB",
+                    auto_create_session=True
+                )
+                self._pcb_initialized = True
+                print("✅ PCB ADK Agent initialized successfully")
+            except Exception as e:
+                print(f"❌ PCB ADK initialization failed: {e}")
+                self._pcb_initialized = False
+        else:
+            print("⚠️ PCB Agent running in fallback mode")
             self._initialized = False
     
     async def chat(
@@ -99,6 +127,234 @@ class AgentService:
             context=context
         )
     
+    async def chat_pcb(
+        self,
+        message: str,
+        session_id: str = "pcb_default",
+        user_id: str = "default",
+        context: Optional[Dict[str, Any]] = None,
+        history: Optional[List[Dict]] = None,
+        image_base64: Optional[str] = None,
+        image_mime_type: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Send a message to the PCB Manufacturing Agent.
+        This is the agentic interface for the PCB tab - the agent decides
+        which tools to use based on the user's message.
+        """
+        self._initialize_pcb()
+
+        # If image is provided, append context about it
+        if image_base64:
+            message = f"{message}\n[Image attached: {image_mime_type or 'image/jpeg'}]"
+            if context is None:
+                context = {}
+            context["image_base64"] = image_base64
+            context["image_mime_type"] = image_mime_type or "image/jpeg"
+
+        # Try ADK-based PCB agent first
+        if self._pcb_initialized and self.pcb_runner:
+            try:
+                return await self._run_pcb_agent(
+                    message=message,
+                    session_id=session_id,
+                    user_id=user_id,
+                    context=context
+                )
+            except Exception as e:
+                print(f"PCB ADK agent error: {e}")
+                import traceback
+                traceback.print_exc()
+                # Fall through to fallback
+
+        # Fallback to direct gemini_service for PCB
+        return await self._run_pcb_fallback(
+            message=message,
+            history=history,
+            context=context,
+            image_base64=image_base64,
+            image_mime_type=image_mime_type
+        )
+
+    async def _run_pcb_agent(
+        self,
+        message: str,
+        session_id: str,
+        user_id: str,
+        context: Optional[Dict] = None
+    ) -> Dict[str, Any]:
+        """Run the ADK-based PCB Manufacturing Agent."""
+        from google.genai import types
+
+        app_name = "BatteryForgePCB"
+
+        # ADK requires a Content object for new_message
+        new_message = types.Content(
+            role="user",
+            parts=[types.Part(text=message)]
+        )
+
+        # Inject context into session state if available
+        if context:
+            session = await self.session_service.get_session(
+                app_name=app_name, user_id=user_id, session_id=session_id
+            )
+            if session:
+                session.state.update({"pcb_context": context})
+
+        response_text = ""
+        trace = []
+        tool_calls = []
+
+        # Run the PCB agent and iterate over events
+        try:
+            async for event in self.pcb_runner.run_async(
+                user_id=user_id,
+                session_id=session_id,
+                new_message=new_message
+            ):
+                # Collect Tool Calls
+                for fc in event.get_function_calls():
+                    tool_calls.append({
+                        "tool": fc.name,
+                        "args": dict(fc.args) if fc.args else {},
+                        "timestamp": str(event.timestamp) if event.timestamp else None
+                    })
+                    trace.append({
+                        "agent": "PCBManufacturingAgent",
+                        "action": f"tool_call: {fc.name}",
+                        "timestamp": str(event.timestamp) if event.timestamp else None
+                    })
+
+                # Collect Response Text
+                if event.author != 'user' and event.content and event.content.parts:
+                    for part in event.content.parts:
+                        if part.text:
+                            response_text += part.text
+        except Exception as e:
+            traceback.print_exc()
+            raise e
+
+        # Parse actions from the accumulated response
+        actions = self._extract_actions(response_text)
+
+        return {
+            "response": response_text,
+            "actions": actions,
+            "tool_calls": tool_calls,
+            "trace": trace,
+            "session_id": session_id,
+            "agent_mode": "pcb_adk"
+        }
+
+    async def _run_pcb_fallback(
+        self,
+        message: str,
+        history: Optional[List[Dict]] = None,
+        context: Optional[Dict] = None,
+        image_base64: Optional[str] = None,
+        image_mime_type: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Fallback to gemini_service for PCB operations."""
+        from services.gemini_service import gemini_service
+
+        # Determine intent and call appropriate method
+        message_lower = message.lower()
+
+        try:
+            # Design-related queries
+            if any(kw in message_lower for kw in ['design', 'schematic', 'bms', 'circuit', 'board', 'spec']):
+                result = await gemini_service.generate_pcb_design_critique(message)
+                return {
+                    "response": self._format_design_response(result),
+                    "data": result,
+                    "actions": [],
+                    "tool_calls": [{"tool": "generate_pcb_design", "args": {"specs": message}}],
+                    "agent_mode": "pcb_fallback"
+                }
+
+            # Maintenance queries
+            elif any(kw in message_lower for kw in ['cnc', 'machine', 'drill', 'fleet', 'status', 'maintenance']):
+                from battery_forge_agent.tools.pcb_tools import get_cnc_fleet_status, get_drill_inventory
+                fleet = get_cnc_fleet_status()
+                drills = get_drill_inventory()
+                return {
+                    "response": self._format_maintenance_response(fleet, drills),
+                    "data": {"fleet": fleet, "drills": drills},
+                    "actions": [],
+                    "tool_calls": [{"tool": "get_cnc_fleet_status"}, {"tool": "get_drill_inventory"}],
+                    "agent_mode": "pcb_fallback"
+                }
+
+            # Default: treat as general PCB question
+            else:
+                result = await gemini_service.generate_pcb_design_critique(message)
+                return {
+                    "response": self._format_design_response(result),
+                    "data": result,
+                    "actions": [],
+                    "tool_calls": [],
+                    "agent_mode": "pcb_fallback"
+                }
+        except Exception as e:
+            return {
+                "response": f"I encountered an error processing your request: {str(e)}",
+                "error": str(e),
+                "actions": [],
+                "tool_calls": [],
+                "agent_mode": "pcb_fallback_error"
+            }
+
+    def _format_design_response(self, result: Dict) -> str:
+        """Format PCB design result into readable response."""
+        if result.get("status") == "needs_clarification":
+            questions = result.get("clarifying_questions", [])
+            understood = result.get("understood_so_far", "")
+            response = "I need a bit more information to create the best design for you.\n\n"
+            if understood:
+                response += f"**What I understood:** {understood}\n\n"
+            response += "**Questions:**\n"
+            for i, q in enumerate(questions, 1):
+                response += f"{i}. {q}\n"
+            return response
+        else:
+            # Full design generated
+            blocks = result.get("blocks", [])
+            response = "**PCB Design Plan Generated**\n\n"
+            if blocks:
+                response += "**Functional Blocks:**\n"
+                for b in blocks:
+                    response += f"- **{b.get('name', 'Block')}**: {b.get('function', 'N/A')}\n"
+            if result.get("interconnections"):
+                response += f"\n**Interconnections:** {', '.join(result['interconnections'])}\n"
+            if result.get("recommended_components"):
+                response += "\n**Recommended Components:**\n"
+                for comp in result["recommended_components"][:5]:
+                    response += f"- {comp.get('part_number', 'N/A')}: {comp.get('description', 'N/A')}\n"
+            return response
+
+    def _format_maintenance_response(self, fleet: Dict, drills: Dict) -> str:
+        """Format maintenance data into readable response."""
+        response = "**CNC Fleet Status**\n\n"
+        response += f"Total Machines: {fleet['total']} | Running: {fleet['running']} | Warnings: {fleet['warnings']}\n\n"
+
+        warnings = [m for m in fleet['machines'] if m['status'] == 'WARNING']
+        if warnings:
+            response += "⚠️ **Machines Requiring Attention:**\n"
+            for m in warnings:
+                response += f"- **{m['id']}**: Temp {m['spindle_temp_c']}°C, Vibration {m['vibration_rms']} mm/s\n"
+
+        response += f"\n**Drill Inventory**\n"
+        response += f"Total: {drills['total']} | OK: {drills['ok']} | Warning: {drills['warning']} | Critical: {drills['critical']}\n"
+
+        critical = [d for d in drills['drills'] if d['status'] == 'CRITICAL']
+        if critical:
+            response += "\n🔴 **Critical Electrodes (Replace Immediately):**\n"
+            for d in critical:
+                response += f"- **{d['id']}**: {d['hits']}/{d['max_hits']} welds, Spatter: {d['resin_smear']}\n"
+
+        return response
+
     async def _run_adk_agent(
         self,
         message: str,
@@ -222,6 +478,7 @@ class AgentService:
             "[VIEW: FLEET]": {"type": "navigate", "target": "fleet"},
             "[VIEW: LOGS]": {"type": "navigate", "target": "logs"},
             "[VIEW: SIM]": {"type": "navigate", "target": "sim"},
+            "[VIEW: PCB]": {"type": "navigate", "target": "pcb"},
         }
         
         for command, action in view_commands.items():

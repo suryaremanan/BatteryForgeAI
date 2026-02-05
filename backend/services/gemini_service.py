@@ -797,14 +797,18 @@ class GeminiService:
 
 
     # ==========================================
-    # FEATURE 1: Automated Design & Engineering (Gemini 3 Deep Think)
+    # FEATURE 1: BMS Design & Engineering (Gemini 3 Deep Think)
     # ==========================================
-    
+
     async def generate_pcb_design_critique(self, design_specs: str, conversation_history: list = None):
         """
-        Requirement-to-Schematic Generator (Gemini 3 Pro - Reasoning).
-        Acts as an "Engineering Intern" — asks clarifying questions if critical info is missing,
-        then generates a preliminary design plan/block diagram.
+        BMS Design Review with Gemini 3 Pro.
+        Analyzes battery management system designs for:
+        - Cell balancing topology (passive vs active)
+        - Current sensing architecture (high-side vs low-side shunt)
+        - Protection circuit design (OVP, UVP, OCP, OTP)
+        - Communication interfaces (CAN, SMBus, isolated vs non-isolated)
+        - Thermal management integration
         """
         try:
             history_context = ""
@@ -816,21 +820,43 @@ class GeminiService:
                     history_context += f"  {role}: {content}\n"
 
             prompt = f"""
-            Act as a Lead PCB Design Engineer functioning as an "Engineering Intern".
+            Act as a Senior BMS Architect with 15+ years in EV battery systems.
 
             IMPORTANT BEHAVIOR:
-            - First, evaluate if the input specifications contain enough critical information to produce a reliable design.
-            - Critical information includes: cell configuration, voltage levels, max current, key interfaces, form factor, thermal constraints, and power budget.
+            - First, evaluate if the input specifications contain enough critical information to produce a reliable BMS design.
+            - Critical information includes: cell configuration (S/P), cell chemistry, voltage range, max continuous/peak current, balancing requirements, communication interfaces, thermal management needs, and target application.
             - If ANY critical information is missing or ambiguous, you MUST return clarifying questions INSTEAD of a full design plan.
-            - Only generate the full design plan when you have sufficient information (either from the initial specs or from the conversation history).
+            - Only generate the full design plan when you have sufficient information.
             {history_context}
 
-            Current Input Specifications:
+            Current BMS Specifications:
             "{design_specs}"
 
-            Context & Standards:
-            - Applied Standards: IPC-2221 (Generic Design), IPC-7351 (Land Pattern), IPC-2152 (Current Carrying Capacity).
-            - Goal: "Shift-Left" verification to catch EMI/SI/PI issues early.
+            MANDATORY ANALYSIS AREAS:
+            1. **Cell Configuration & Balancing**
+               - Is the cell count (S/P) appropriate for the voltage/capacity?
+               - Is passive or active balancing specified? Recommend based on pack size.
+               - Check balancing current vs cell capacity ratio.
+
+            2. **Current Sensing Architecture**
+               - Shunt resistor placement (high-side vs low-side)?
+               - Coulomb counting accuracy requirements?
+               - Current rating vs max discharge rate?
+
+            3. **Protection Circuits**
+               - OVP/UVP thresholds appropriate for cell chemistry?
+               - Short circuit detection time (typically <500μs required)?
+               - Precharge circuit for capacitive loads?
+
+            4. **Thermal Integration**
+               - NTC thermistor placement strategy?
+               - Thermal runaway detection provisions?
+               - Cooling system interface signals?
+
+            5. **Safety & Standards**
+               - IEC 62619 compliance gaps?
+               - Functional safety (ISO 26262) considerations for automotive?
+               - UN38.3 transport requirements?
 
             DECISION:
             - If information is INSUFFICIENT, return JSON with clarifying_questions.
@@ -840,27 +866,47 @@ class GeminiService:
             {{
                 "status": "needs_clarification",
                 "clarifying_questions": [
-                    "What is the cell configuration (e.g., 4S, 6S)?",
-                    "What is the maximum continuous current requirement?",
-                    "Are there specific communication interfaces needed (I2C, SPI, CAN)?"
+                    "What is the cell chemistry (NMC, LFP, NCA)?",
+                    "What is the target application (EV, ESS, power tools)?",
+                    "Is active or passive cell balancing preferred?",
+                    "What communication interface is required (CAN, SMBus, UART)?"
                 ],
-                "understood_so_far": "BMS design with LiPo chemistry"
+                "understood_so_far": "16S BMS with 100A discharge requirement"
             }}
 
             Response Format (Sufficient Info):
             {{
                 "status": "design_ready",
                 "design_plan": {{
-                    "blocks": ["Power Management (Buck Converter)", "MCU (USB-C support)", "Analog Front End"],
-                    "interconnections": ["USB-C -> PMIC -> MCU", "Sensor -> AFE -> MCU"]
+                    "blocks": [
+                        "Cell Monitoring AFE (16S stacked)",
+                        "MCU (ARM Cortex-M4, CAN peripheral)",
+                        "High-Side Current Sense (100A shunt + INA240)",
+                        "Protection FETs (Dual N-CH, 150A rated)",
+                        "Precharge Circuit (10Ω NTC + relay)",
+                        "Isolated CAN Transceiver",
+                        "DC-DC Isolated Power Supply"
+                    ],
+                    "interconnections": [
+                        "Cells -> AFE -> MCU (daisy-chain SPI)",
+                        "Shunt -> INA240 -> MCU ADC",
+                        "MCU -> Gate Driver -> Protection FETs",
+                        "MCU -> ISO CAN -> Vehicle ECU",
+                        "NTC Array -> MUX -> MCU ADC"
+                    ]
                 }},
                 "component_recommendations": [
-                    {{ "function": "USB-C Controller", "spec": "PD 3.0 support", "verify": "Check 50-ohm differential pair routing" }}
+                    {{ "function": "Cell Monitor AFE", "spec": "BQ76952 (16S, integrated balancing)", "verify": "Verify cell voltage accuracy ±5mV" }},
+                    {{ "function": "Current Sense Amp", "spec": "INA240A4 (high-side, 200V CMR)", "verify": "Check gain error vs temperature" }},
+                    {{ "function": "Protection FET", "spec": "NVMFS5C673NL (80V, 150A)", "verify": "SOA for short circuit event" }},
+                    {{ "function": "MCU", "spec": "STM32G474 (CAN-FD, HRTIM)", "verify": "Automotive grade AEC-Q100" }}
                 ],
                 "constraint_definitions": [
-                    "Trace Width: Calculate per IPC-2152 for temp rise < 10C",
-                    "Differential pairs: 90 ohm impedance matched (+- 10%)",
-                    "Keep switching regulators > 20mm from AFE (EMI mitigation)"
+                    "Balancing: Passive 50mA or Active with efficiency > 90%",
+                    "Protection: OVP at 4.25V/cell (NMC), UVP at 2.8V/cell, OCP at 120A",
+                    "Response Time: Short circuit detection < 300μs, FET turn-off < 50μs",
+                    "Thermal: 8x NTC (1 per 2 cells), thermal runaway threshold 70°C",
+                    "Isolation: CAN bus must be galvanically isolated (2.5kV rated)"
                 ]
             }}
             """
@@ -1087,6 +1133,167 @@ class GeminiService:
         except Exception as e:
             return {"error": str(e)}
 
+    async def inspect_battery_assembly(self, image_data, mime_type="image/jpeg", inspection_type="general"):
+        """
+        Vision AI for battery pack assembly inspection.
+
+        inspection_type options:
+        - "weld": Tab welding quality (cold weld, splash, burn-through)
+        - "pouch": Pouch cell integrity (swelling, seal defects, electrode misalignment)
+        - "busbar": Busbar connections (torque marks, contact quality)
+        - "thermal_paste": TIM application uniformity
+        - "general": Full assembly overview
+        """
+        try:
+            prompts = {
+                "weld": """
+                    Act as a Battery Welding QC Engineer with expertise in laser/ultrasonic tab welding.
+                    Analyze this image of battery tab welds.
+
+                    DEFECT CLASSES:
+                    1. COLD_WELD - Insufficient fusion, dull/porous appearance, weak bond
+                    2. BURN_THROUGH - Excessive heat, hole in tab material, visible damage
+                    3. SPLASH - Weld spatter on adjacent cells or busbars
+                    4. MISALIGNMENT - Tab not centered on terminal, offset weld nugget
+                    5. CRACK - Fracture in weld zone or heat-affected zone
+                    6. INCOMPLETE_FUSION - Partial weld, not full coverage
+
+                    For each defect found, provide:
+                    - Classification and severity (CRITICAL/MAJOR/MINOR)
+                    - Location on the image (approximate coordinates 0-1000 scale)
+                    - Root cause hypothesis (laser power, pulse duration, focus, contamination)
+                    - Accept/Reject decision per automotive battery standards
+
+                    Return JSON:
+                    {
+                        "inspection_type": "tab_weld",
+                        "defects_found": [
+                            {"type": "COLD_WELD", "severity": "CRITICAL", "location": "Cell 3 positive tab", "confidence": 95, "root_cause": "Insufficient laser power or dirty surface", "bbox": [200, 300, 250, 350]}
+                        ],
+                        "weld_quality_score": 72,
+                        "verdict": "REJECT",
+                        "summary": "Cold weld detected on Cell 3 - requires reweld",
+                        "critical_count": 1,
+                        "major_count": 0,
+                        "minor_count": 0
+                    }
+                """,
+
+                "pouch": """
+                    Act as a Pouch Cell QC Specialist with expertise in lithium-ion cell inspection.
+                    Analyze this pouch cell image for manufacturing defects.
+
+                    DEFECT CLASSES:
+                    1. SWELLING - Gas generation, pillow effect, bulging sides
+                    2. SEAL_DEFECT - Incomplete edge sealing, wrinkles, channeling
+                    3. ELECTRODE_VISIBLE - Tab area showing electrode material, misaligned stack
+                    4. ELECTROLYTE_LEAK - Wet spots, crystallization, corrosion stains
+                    5. DENT - Physical damage to pouch, puncture risk
+                    6. TAB_DAMAGE - Bent, torn, or corroded tabs
+
+                    Severity scale: SCRAP (immediate disposal), REWORK (salvageable), ACCEPT_WITH_DEVIATION, PASS
+
+                    Return JSON:
+                    {
+                        "inspection_type": "pouch_cell",
+                        "defects_found": [
+                            {"type": "SWELLING", "severity": "SCRAP", "location": "Center of cell body", "confidence": 98, "safety_risk": "HIGH - potential thermal event", "bbox": [100, 200, 800, 600]}
+                        ],
+                        "cell_condition_score": 15,
+                        "verdict": "SCRAP",
+                        "summary": "Severe swelling indicates internal gas generation - cell must be safely disposed",
+                        "safety_alert": true
+                    }
+                """,
+
+                "busbar": """
+                    Act as a Battery Pack Assembly QC Engineer specializing in busbar connections.
+                    Analyze this busbar/interconnect image.
+
+                    CHECK POINTS:
+                    1. TORQUE_MARKS - Evidence of proper fastener torque (paint marks, witness marks)
+                    2. CONTACT_QUALITY - Full contact area, no gaps, proper alignment
+                    3. CORROSION - Surface oxidation, galvanic corrosion signs
+                    4. THERMAL_DAMAGE - Discoloration from overheating, hot spots
+                    5. MECHANICAL_DAMAGE - Scratches, dents, cracks in busbar
+                    6. INSULATION - Proper isolation from adjacent conductors
+
+                    Return JSON:
+                    {
+                        "inspection_type": "busbar_connection",
+                        "connections_checked": 8,
+                        "issues_found": [
+                            {"type": "MISSING_TORQUE_MARK", "severity": "MAJOR", "location": "Connection B3", "confidence": 90, "action": "Verify torque and re-mark"}
+                        ],
+                        "connection_quality_score": 85,
+                        "verdict": "CONDITIONAL_PASS",
+                        "summary": "7 of 8 connections verified. B3 requires torque verification."
+                    }
+                """,
+
+                "thermal_paste": """
+                    Act as a Thermal Interface Material (TIM) Application QC Specialist.
+                    Analyze this image of thermal paste/pad application on battery cells or modules.
+
+                    CHECK POINTS:
+                    1. COVERAGE - Full coverage of contact area, no bare spots
+                    2. UNIFORMITY - Even thickness, no pooling or thin areas
+                    3. OVERFLOW - Excess material outside intended area
+                    4. CONTAMINATION - Foreign particles, debris in TIM
+                    5. AIR_BUBBLES - Trapped air pockets reducing thermal transfer
+
+                    Return JSON:
+                    {
+                        "inspection_type": "thermal_interface",
+                        "coverage_percentage": 95,
+                        "uniformity_score": 88,
+                        "issues_found": [
+                            {"type": "AIR_BUBBLE", "severity": "MINOR", "location": "Corner region", "confidence": 75, "thermal_impact": "Localized hot spot risk"}
+                        ],
+                        "verdict": "PASS",
+                        "summary": "TIM application meets spec with minor air bubble - acceptable for production"
+                    }
+                """,
+
+                "general": """
+                    Act as a Senior Battery Pack Assembly Inspector.
+                    Perform a comprehensive visual inspection of this battery assembly image.
+
+                    CHECK ALL AREAS:
+                    1. Cell alignment and spacing
+                    2. Wiring harness routing and strain relief
+                    3. BMS board mounting and connections
+                    4. Thermal management components (cooling plates, TIM)
+                    5. Structural integrity (enclosure, brackets)
+                    6. Safety features (fuses, contactors, vents)
+                    7. Labeling and QR codes
+
+                    Return JSON:
+                    {
+                        "inspection_type": "general_assembly",
+                        "areas_inspected": ["cells", "wiring", "bms", "thermal", "structure", "safety", "labeling"],
+                        "defects_found": [],
+                        "observations": [
+                            {"area": "wiring", "note": "Harness properly secured with P-clips", "status": "GOOD"},
+                            {"area": "thermal", "note": "Cooling plate contact verified", "status": "GOOD"}
+                        ],
+                        "overall_score": 92,
+                        "verdict": "PASS",
+                        "summary": "Assembly meets production standards. Ready for EOL testing."
+                    }
+                """
+            }
+
+            prompt = prompts.get(inspection_type, prompts["general"])
+
+            response = await self.vision_model.generate_content_async([
+                prompt,
+                {"mime_type": mime_type, "data": image_data}
+            ])
+            return self._extract_json(response.text)
+        except Exception as e:
+            return {"error": str(e)}
+
     # ==========================================
     # FEATURE 3: Predictive Maintenance (Gemini 3 Flash)
     # ==========================================
@@ -1194,6 +1401,135 @@ class GeminiService:
                 ],
                 "estimated_time_to_failure_hours": 200,
                 "confidence": 0.82
+            }}
+            """
+            response = self.flash_model.generate_content(prompt)
+            return self._extract_json(response.text)
+        except Exception as e:
+            return {"error": str(e)}
+
+    # ==========================================
+    # FEATURE 3B: Battery Formation Protocol Optimization
+    # ==========================================
+
+    async def optimize_formation_protocol(self, cell_chemistry: str, capacity_ah: float,
+                                          ambient_temp: float, target_cycles: int):
+        """
+        AI-powered formation cycling optimization.
+        Uses electrochemical knowledge to recommend C-rate profiles
+        for optimal SEI formation.
+        """
+        try:
+            prompt = f"""
+            Act as a Battery Formation Engineer with expertise in SEI (Solid Electrolyte Interphase) optimization.
+
+            Cell Parameters:
+            - Chemistry: {cell_chemistry}
+            - Nominal Capacity: {capacity_ah} Ah
+            - Ambient Temperature: {ambient_temp}°C
+            - Target Formation Cycles: {target_cycles}
+
+            Provide an optimized formation protocol considering:
+            1. Initial low-rate charge (C-rate, voltage cutoff) - slower = denser, more uniform SEI
+            2. Rest period between cycles for electrolyte redistribution
+            3. Temperature setpoint for each phase - affects SEI composition (LiF vs organic species)
+            4. Expected capacity retention after formation
+
+            Chemistry-Specific Guidelines:
+            - NMC/NCA: Form at 0.05-0.1C initial, 25°C optimal, 4.2V cutoff
+            - LFP: Can tolerate 0.1-0.2C, 25-35°C acceptable, 3.65V cutoff
+            - LTO: Fast formation possible at 0.5C, wide temp range
+
+            Return JSON:
+            {{
+                "chemistry": "{cell_chemistry}",
+                "formation_protocol": {{
+                    "cycle_profiles": [
+                        {{
+                            "cycle": 1,
+                            "charge_c_rate": 0.05,
+                            "charge_cutoff_v": 4.2,
+                            "discharge_c_rate": 0.1,
+                            "discharge_cutoff_v": 2.8,
+                            "rest_after_charge_min": 30,
+                            "rest_after_discharge_min": 15,
+                            "temperature_setpoint_c": 25
+                        }},
+                        {{
+                            "cycle": 2,
+                            "charge_c_rate": 0.1,
+                            "charge_cutoff_v": 4.2,
+                            "discharge_c_rate": 0.2,
+                            "discharge_cutoff_v": 2.8,
+                            "rest_after_charge_min": 20,
+                            "rest_after_discharge_min": 10,
+                            "temperature_setpoint_c": 25
+                        }}
+                    ],
+                    "total_time_hours": 48,
+                    "predicted_sei_quality": 92,
+                    "expected_capacity_retention_1000_cycles": 88
+                }},
+                "technical_reasoning": "Low initial C-rate allows uniform SEI nucleation. 25°C balances Li+ mobility with SEI stability.",
+                "warnings": ["Avoid formation above 35°C - leads to porous SEI with poor cycling stability"]
+            }}
+            """
+            response = self.flash_model.generate_content(prompt)
+            return self._extract_json(response.text)
+        except Exception as e:
+            return {"error": str(e)}
+
+    async def optimize_tab_welding(self, material: str, thickness_mm: float, weld_type: str):
+        """
+        AI-powered tab welding parameter optimization.
+        Recommends laser/ultrasonic parameters for battery tab welding.
+        """
+        try:
+            prompt = f"""
+            Act as a Battery Welding Process Engineer specializing in tab-to-cell connections.
+
+            Welding Parameters:
+            - Tab Material: {material}
+            - Tab Thickness: {thickness_mm} mm
+            - Weld Type: {weld_type}
+
+            Optimize welding parameters for:
+            1. Laser Welding: Power (W), pulse duration (ms), spot size, focal position
+            2. Ultrasonic Welding: Amplitude (μm), pressure (N), time (ms), horn frequency
+
+            Material Considerations:
+            - Nickel tabs: Good weldability, 50-100μm typical
+            - Aluminum tabs: Requires careful oxide removal, prone to porosity
+            - Copper tabs: High thermal conductivity, needs higher power
+
+            Return JSON:
+            {{
+                "material": "{material}",
+                "thickness_mm": {thickness_mm},
+                "recommended_parameters": {{
+                    "laser": {{
+                        "power_w": 2500,
+                        "pulse_duration_ms": 3,
+                        "spot_diameter_mm": 0.6,
+                        "focal_offset_mm": 0,
+                        "shield_gas": "Argon",
+                        "pulse_shape": "rectangular"
+                    }},
+                    "ultrasonic": {{
+                        "amplitude_um": 30,
+                        "pressure_n": 400,
+                        "weld_time_ms": 200,
+                        "frequency_khz": 20,
+                        "horn_pattern": "knurled"
+                    }}
+                }},
+                "expected_weld_strength_n": 55,
+                "quality_metrics": {{
+                    "nugget_diameter_mm": 2.5,
+                    "penetration_percent": 80,
+                    "acceptable_void_percent": 5
+                }},
+                "process_window": "Power ±5%, Time ±10% for consistent results"
             }}
             """
             response = self.flash_model.generate_content(prompt)

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FleetProvider } from './components/fleet/shared/FleetContext';
 import FleetDashboard from './components/fleet/FleetDashboard';
 import VehicleManagement from './components/fleet/VehicleManagement';
@@ -7,20 +7,23 @@ import FleetAnalytics from './components/fleet/FleetAnalytics';
 import ChargingManagement from './components/fleet/ChargingManagement';
 import RouteManagement from './components/fleet/RouteManagement';
 import FleetSettings from './components/fleet/FleetSettings';
+import FleetMonitor from './components/FleetMonitor';
 import {
     Home, Car, Users, BarChart3, Zap, Route, Wrench,
-    Settings, Menu, X
+    Settings, Menu, X, Activity
 } from 'lucide-react';
 
 /**
  * Main EV Fleet Management Application
+ * Phase 1: Added fleet data callbacks for agent context integration
  */
-function FleetApp() {
+function FleetApp({ onFleetDataUpdate, onProactiveAlert }) {
     const [activeView, setActiveView] = useState('dashboard');
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
     const navigation = [
         { id: 'dashboard', name: 'Mission Control', icon: Home },
+        { id: 'telemetry', name: 'Telemetry', icon: Activity },
         { id: 'vehicles', name: 'Vehicles', icon: Car },
         { id: 'drivers', name: 'Drivers', icon: Users },
         { id: 'analytics', name: 'Analytics', icon: BarChart3 },
@@ -34,6 +37,8 @@ function FleetApp() {
         switch (activeView) {
             case 'dashboard':
                 return <FleetDashboard />;
+            case 'telemetry':
+                return <FleetMonitor onFleetDataUpdate={onFleetDataUpdate} onProactiveAlert={onProactiveAlert} />;
             case 'vehicles':
                 return <VehicleManagement />;
             case 'drivers':

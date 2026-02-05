@@ -4,6 +4,166 @@
 
 An advanced agentic AI system for battery manufacturing defect detection, physics-based optimization, and fleet management. Built with Google's Agent Development Kit (ADK) for seamless multi-agent orchestration.
 
+---
+
+## 🎬 HACKATHON DEMO SCRIPT (2:30)
+
+> **For Judges:** This is a scripted walkthrough demonstrating BatteryForge AI's capabilities. Time markers help pace the presentation.
+
+---
+
+### **[0:00-0:15] THE HOOK - The Problem**
+
+*"Every year, battery failures cause $2 billion in recalls, factory fires, and EV incidents. The problem? Humans can't monitor thousands of battery cells in real-time. But what if AI could?"*
+
+*"This is BatteryForge AI — a multi-agent system where 7 specialized AI agents powered by Gemini 3 work together to prevent the next battery disaster."*
+
+**[Show: Home dashboard with BatteryForge logo]**
+
+---
+
+### **[0:15-0:45] DEMO 1: Agentic Fleet Commander**
+
+*"Let me show you what 'agentic AI' really means."*
+
+**[Navigate to Fleet Monitor → Telemetry tab]**
+
+*"This is our live fleet — 1,240 battery packs across vehicles worldwide. Watch the AI Commander panel on the right — it's already analyzing thermal spread and identifying outliers."*
+
+**[Point to the red list and critical packs]**
+
+*"See these critical packs? The agent detected them automatically. Now watch what happens when I trigger a heat wave scenario..."*
+
+**[Click "Heat Wave" stress test button]**
+
+*"The physics engine just simulated 40°C ambient temperature. Look — the AI Commander instantly recalculated risk levels, and... there — it's flagging thermal runaway risk on Pack BAT-3847."*
+
+**[Open Chat Interface - show "FLEET AWARE" badge]**
+
+*"Here's the magic. I can just ask: 'What should we do about the critical packs?'"*
+
+**[Type: "Show me critical packs and recommend actions"]**
+
+*"Watch the agent trace panel — see how FleetCommanderAgent receives the request, queries the fleet, and returns actionable intelligence with confirmation buttons. This isn't just chat — it's bidirectional control."*
+
+---
+
+### **[0:45-1:15] DEMO 2: Real-Time Visual Intelligence**
+
+*"Now let's catch defects before they ship."*
+
+**[Navigate to Visual Intelligence tab]**
+
+*"I'll upload a battery cell image from our production line."*
+
+**[Upload a battery defect image]**
+
+*"Gemini Vision analyzes this using our 'Detect-Locate-Describe' methodology..."*
+
+**[Results appear]**
+
+*"Detected: Tab welding defect. Location: Positive terminal. Severity: Critical. And look — it's already recommending 'Reject unit, inspect upstream welder' — that's institutional knowledge from our RAG system, trained on 50+ battery safety manuals."*
+
+**[Switch to Live Scout tab if time permits]**
+
+*"This also works in real-time on video streams — imagine this on every manufacturing line, catching defects at camera speed."*
+
+---
+
+### **[1:15-1:45] DEMO 3: Physics-Based Digital Twin**
+
+*"But detection isn't enough. We need to predict failures before they happen."*
+
+**[Navigate to Simulation tab]**
+
+*"I'll upload real charging data from a degraded cell."*
+
+**[Upload a CSV file]**
+
+*"Watch — the AI automatically maps columns regardless of format. Arbin, BioLogic, Tesla — it handles them all using semantic understanding."*
+
+**[Show the interactive chart with PyBaMM comparison]**
+
+*"Here's the breakthrough: This orange line is a physics-based simulation from PyBaMM — the Doyle-Fuller-Newman model running in real-time. The blue line is our actual data."*
+
+*"See where they diverge? That's the digital twin catching anomalies. And this Safety Score — 73 — it's computed from voltage stability and thermal deviation, not guessed by AI."*
+
+**[Point to the EIS Nyquist plot if available]**
+
+*"We even do impedance spectroscopy analysis — layer by layer diagnostics of the cell's electrochemistry."*
+
+---
+
+### **[1:45-2:10] DEMO 4: Multi-Agent Orchestration**
+
+*"All of this is powered by 7 specialized agents working together."*
+
+**[Open Chat Interface and Agent Trace Panel]**
+
+*"Let me demonstrate. I'll ask: 'Analyze the uploaded data and predict remaining useful life.'"*
+
+**[Type the message]**
+
+*"Watch the trace panel: BatteryForgeCommander receives it, routes to ChargingOptimizationAgent for the data, then to PredictiveMaintenanceAgent for RUL... and look — it's calling tools: parse_charging_data, run_pybamm_simulation, predict_aging_trajectory."*
+
+*"This isn't one model — it's a team of specialists, each with their own tools, coordinating like a real engineering team."*
+
+---
+
+### **[2:10-2:25] DEMO 5: Safety-Critical Actions with Human-in-the-Loop**
+
+*"But with great power comes great responsibility."*
+
+**[Type in chat: "Isolate pack BAT-3847 due to thermal runaway risk"]**
+
+*"Watch — it's not executing immediately. Critical actions require human confirmation."*
+
+**[Show the Approve/Reject buttons]**
+
+*"One click isolates the pack, disconnects charging, and creates a work order — but only with explicit approval. This is agentic AI with guardrails."*
+
+**[Click Approve]**
+
+*"✅ Done. Pack isolated, maintenance notified, work order WO-47829 created."*
+
+---
+
+### **[2:25-2:30] THE CLOSE**
+
+*"BatteryForge AI: 7 agents, 20+ tools, physics-based simulation, real-time visual inspection, and human-in-the-loop safety — all orchestrated by Gemini 3."*
+
+*"Because the next billion batteries deserve intelligence that never sleeps."*
+
+**[Return to Home dashboard]**
+
+---
+
+### **BACKUP TALKING POINTS** (if judges ask questions)
+
+- **"How is this different from existing solutions?"** — Most battery monitoring is reactive. We're predictive AND agentic. The AI doesn't just report — it acts, with confirmation.
+
+- **"What's the business model?"** — SaaS for fleet operators ($X/pack/month), Enterprise for manufacturers (site license + support).
+
+- **"What makes Gemini 3 essential?"** — Multi-modal vision, tool calling for agents, semantic understanding for CSV parsing, and low-latency for real-time use.
+
+- **"How accurate is the physics simulation?"** — PyBaMM's DFN model is the gold standard in battery research. We're not approximating — we're computing.
+
+- **"What's next?"** — Acoustic defect detection, thermal camera integration, and real-time BMS telemetry via CAN bus.
+
+---
+
+### **DEMO CHECKLIST**
+
+Before presenting, ensure:
+- [ ] Backend running (`docker compose up` or `uvicorn main:app --reload`)
+- [ ] Frontend running (`npm run dev` or via Docker)
+- [ ] Fleet Monitor has data (visit Telemetry tab first to trigger polling)
+- [ ] Sample battery defect image ready
+- [ ] Sample CSV charging data ready
+- [ ] Chat interface opens smoothly
+
+---
+
 [![Gemini 3](https://img.shields.io/badge/Gemini-3.0-blue?style=for-the-badge&logo=google)](https://deepmind.google/technologies/gemini/)
 [![ADK](https://img.shields.io/badge/Google-ADK-orange?style=for-the-badge)](https://ai.google.dev/adk)
 [![PyBaMM](https://img.shields.io/badge/PyBaMM-Physics-green?style=for-the-badge)](https://www.pybamm.org/)

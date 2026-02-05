@@ -58,7 +58,7 @@ const ProgressRing = ({ value, size = 80, strokeWidth = 8, color = '#10b981' }) 
     );
 };
 
-const FleetMonitor = () => {
+const FleetMonitor = ({ onFleetDataUpdate, onProactiveAlert }) => {
     const [fleetData, setFleetData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [simulating, setSimulating] = useState(false);
@@ -72,6 +72,35 @@ const FleetMonitor = () => {
                     const jsonData = await res.json();
                     setFleetData(jsonData);
                     setLoading(false);
+
+                    // Phase 1: Report fleet data to parent for agent context
+                    if (onFleetDataUpdate) {
+                        onFleetDataUpdate(jsonData);
+                    }
+
+                    // Phase 4: Proactive alert detection
+                    if (onProactiveAlert && jsonData.data?.red_list) {
+                        const criticalPacks = jsonData.data.red_list.filter(
+                            p => p.status === 'CRITICAL' && p.temp > 55
+                        );
+                        if (criticalPacks.length > 0) {
+                            criticalPacks.forEach(pack => {
+                                onProactiveAlert({
+                                    id: `alert-${pack.pack_id}-${Date.now()}`,
+                                    type: 'critical',
+                                    pack_id: pack.pack_id,
+                                    message: `⚠️ CRITICAL: Pack ${pack.pack_id} at ${pack.temp}°C - thermal runaway risk!`,
+                                    suggested_action: {
+                                        type: 'isolate_pack',
+                                        pack_id: pack.pack_id,
+                                        label: 'Isolate Pack',
+                                        requires_confirmation: true
+                                    },
+                                    timestamp: new Date().toISOString()
+                                });
+                            });
+                        }
+                    }
                 }
             } catch (e) {
                 console.error("Fleet fetch error:", e);
@@ -81,7 +110,7 @@ const FleetMonitor = () => {
         fetchData();
         const interval = setInterval(fetchData, 3000);
         return () => clearInterval(interval);
-    }, []);
+    }, [onFleetDataUpdate, onProactiveAlert]);
 
     const handleScenario = async (scenario) => {
         setSimulating(true);

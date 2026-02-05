@@ -653,6 +653,100 @@ async def get_agent_status():
             "mode": "offline"
         }
 
+# ============================================================
+# PHASE 3: FLEET ACTION EXECUTION ENDPOINT
+# ============================================================
+
+class FleetActionRequest(BaseModel):
+    action_type: str  # 'isolate_pack', 'control_charging', 'create_work_order', etc.
+    parameters: dict
+    confirmed: bool = False  # User confirmation for critical actions
+
+@router.post("/fleet/execute-action")
+async def execute_fleet_action(request: FleetActionRequest):
+    """
+    Execute fleet actions from the chat interface.
+    Critical actions require explicit confirmation.
+    """
+    from battery_forge_agent.tools.fleet_tools import (
+        isolate_pack, batch_control_charging, create_work_order,
+        control_charging_rate, send_operator_alert
+    )
+
+    action_type = request.action_type
+    params = request.parameters
+    confirmed = request.confirmed
+
+    # Critical actions that require confirmation
+    critical_actions = ['isolate_pack', 'batch_control_charging']
+
+    if action_type in critical_actions and not confirmed:
+        return {
+            "status": "pending_confirmation",
+            "action_type": action_type,
+            "parameters": params,
+            "message": f"⚠️ This is a critical action. Please confirm to execute {action_type}.",
+            "requires_confirmation": True
+        }
+
+    try:
+        result = None
+
+        if action_type == 'isolate_pack':
+            result = isolate_pack(
+                pack_id=params.get('pack_id'),
+                reason=params.get('reason', 'user_request')
+            )
+
+        elif action_type == 'control_charging':
+            result = control_charging_rate(
+                pack_id=params.get('pack_id'),
+                new_c_rate=params.get('c_rate', 1.0),
+                reason=params.get('reason', 'user_request')
+            )
+
+        elif action_type == 'batch_control_charging':
+            result = batch_control_charging(
+                pack_ids=params.get('pack_ids', []),
+                action=params.get('action', 'pause'),
+                c_rate=params.get('c_rate')
+            )
+
+        elif action_type == 'create_work_order':
+            result = create_work_order(
+                pack_id=params.get('pack_id'),
+                issue=params.get('issue'),
+                priority=params.get('priority', 'medium')
+            )
+
+        elif action_type == 'send_alert':
+            result = send_operator_alert(
+                severity=params.get('severity', 'info'),
+                message=params.get('message', ''),
+                pack_id=params.get('pack_id')
+            )
+
+        else:
+            return {
+                "status": "error",
+                "message": f"Unknown action type: {action_type}"
+            }
+
+        return {
+            "status": "executed",
+            "action_type": action_type,
+            "result": result,
+            "message": f"✅ Action '{action_type}' executed successfully."
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "action_type": action_type,
+            "message": f"Failed to execute action: {str(e)}"
+        }
+
+
 @router.websocket("/ws/agent")
 async def agent_websocket(websocket: WebSocket):
     """

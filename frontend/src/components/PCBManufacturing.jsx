@@ -10,14 +10,16 @@ import {
     BarChart3, TrendingDown, AlertOctagon, Check, X, RotateCcw
 } from 'lucide-react';
 import {
-    analyzeGerber, optimizeMaterial, controlEtching, predictLamination,
-    classifyPCB, checkDrillWear, optimizePlating, verifyETest, generateCertificate,
+    analyzeGerber, optimizeMaterial, optimizePlating,
+    classifyPCB, checkDrillWear, verifyETest, generateCertificate,
     // New Phase 2 API Calls
     generateSchematic, exploreDesignRoute, analyzeXRay, analyzeMaintenanceSignals,
     predictToolLife, checkSupplyRisk, forecastInventory, controlProcessLoop, parseDatasheet,
     inspectAOI,
     // Enhanced Maintenance API
-    getFleetStatus, getDrillInventory, analyzeThermal, scheduleMaintenance, getAnomalyHistory
+    getFleetStatus, getDrillInventory, analyzeThermal, scheduleMaintenance, getAnomalyHistory,
+    // Battery Formation & Welding APIs
+    optimizeFormationProtocol, optimizeTabWelding
 } from '../api';
 
 // ============================================================================
@@ -63,29 +65,31 @@ const AnimatedGauge = ({ value, max, label, unit, color = 'cyan' }) => {
     );
 };
 
-const ProcessFlowTimeline = ({ activePhase, onPhaseClick }) => {
-    const phases = [
-        { id: 1, name: 'Design & Supply', icon: FileText },
-        { id: 2, name: 'Smart Process', icon: Zap },
-        { id: 3, name: 'Vision QA', icon: Eye },
-        { id: 4, name: 'Maint. & Drill', icon: Hammer },
-        { id: 5, name: 'Compliance', icon: ShieldCheck },
+const TabNavigation = ({ activeTab, onTabClick }) => {
+    const tabs = [
+        { id: 1, name: 'Formation & Welding Optimizer', icon: Zap, description: 'AI-powered process parameters' },
+        { id: 2, name: 'Assembly Vision QC', icon: Eye, description: 'Defect detection & inspection' },
+        { id: 3, name: 'Line Monitoring & Inventory', icon: Activity, description: 'Production status & cell tracking' },
     ];
 
     return (
-        <div className="relative flex justify-between">
-            <div className="absolute top-6 left-8 right-8 h-0.5 bg-slate-700" />
-            {phases.map((phase) => (
+        <div className="flex gap-3 mb-6">
+            {tabs.map((tab) => (
                 <button
-                    key={phase.id}
-                    onClick={() => onPhaseClick(phase.id)}
-                    className="flex flex-col items-center group relative z-10"
+                    key={tab.id}
+                    onClick={() => onTabClick(tab.id)}
+                    className={`flex-1 p-4 rounded-xl border-2 transition-all duration-300 hover:scale-[1.02] ${activeTab === tab.id
+                        ? 'bg-purple-600/20 border-purple-500 shadow-lg shadow-purple-500/20'
+                        : 'bg-slate-800/50 border-slate-700 hover:border-purple-500/50'
+                        }`}
                 >
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300
-                        ${activePhase === phase.id ? 'bg-purple-600 shadow-lg scale-110' : 'bg-slate-800 border block-slate-600'}`}>
-                        <phase.icon className={`w-5 h-5 ${activePhase === phase.id ? 'text-white' : 'text-slate-400'}`} />
+                    <div className="flex items-center gap-3 mb-1">
+                        <tab.icon className={`w-5 h-5 ${activeTab === tab.id ? 'text-purple-400' : 'text-slate-400'}`} />
+                        <span className={`font-semibold text-sm ${activeTab === tab.id ? 'text-purple-300' : 'text-slate-300'}`}>
+                            {tab.name}
+                        </span>
                     </div>
-                    <span className="mt-2 text-xs font-medium text-slate-400">{phase.name}</span>
+                    <p className="text-xs text-slate-500 text-left ml-8">{tab.description}</p>
                 </button>
             ))}
         </div>
@@ -335,13 +339,13 @@ const SchematicBlockDiagram = ({ designPlan }) => {
 // ============================================================================
 
 const PCBManufacturing = () => {
-    const [activePhase, setActivePhase] = useState(1);
+    const [activeTab, setActiveTab] = useState(1);
     const [loading, setLoading] = useState(false);
     const [logs, setLogs] = useState([]);
 
     // Data States
     const [schematic, setSchematic] = useState(null);
-    const [designSpecs, setDesignSpecs] = useState("BMS 4S LiPo with USB-C PD and I2C");
+    const [designSpecs, setDesignSpecs] = useState("48V 16S LFP BMS with passive balancing, CAN bus interface, and 100A continuous discharge");
     const [rlPath, setRlPath] = useState(null);
     const [supplyRisk, setSupplyRisk] = useState(null);
     const [processLoop, setProcessLoop] = useState(null);
@@ -369,12 +373,12 @@ const PCBManufacturing = () => {
     const [xrayLoading, setXrayLoading] = useState(false);
     const [xrayPreviewUrl, setXrayPreviewUrl] = useState(null);
 
-    // Smart Process State (Phase 2)
-    const [activeProcess, setActiveProcess] = useState('etching'); // etching, lamination, plating
-    const [etchingParams, setEtchingParams] = useState({ copperWeight: 1.0, concentration: 100 });
-    const [etchingResult, setEtchingResult] = useState(null);
-    const [laminationParams, setLaminationParams] = useState({ material: 'FR4-Standard', layers: 4 });
-    const [laminationResult, setLaminationResult] = useState(null);
+    // Smart Process State (Phase 2) - Formation & Welding
+    const [activeProcess, setActiveProcess] = useState('etching'); // etching=formation, lamination=welding, plating=third process
+    const [formationParams, setFormationParams] = useState({ chemistry: 'NMC', capacityAh: 5.0, ambientTemp: 25, targetCycles: 3 });
+    const [formationResult, setFormationResult] = useState(null);
+    const [weldingParams, setWeldingParams] = useState({ material: 'nickel', thicknessMm: 0.15, weldType: 'laser' });
+    const [weldingResult, setWeldingResult] = useState(null);
     const [platingParams, setPlatingParams] = useState({ width: 300, height: 400 });
     const [platingResult, setPlatingResult] = useState(null);
     const [processRunning, setProcessRunning] = useState(false);
@@ -520,10 +524,10 @@ const PCBManufacturing = () => {
         setLoading(false);
     };
 
-    const handleEtchingControl = async () => {
+    const handleFormationControl = async () => {
         setProcessRunning(true);
-        setEtchingResult(null);
-        addLog(`Running Etching Control: ${etchingParams.copperWeight}oz Cu, ${etchingParams.concentration}% conc...`);
+        setFormationResult(null);
+        addLog(`Optimizing Formation Protocol: ${formationParams.chemistry}, ${formationParams.capacityAh}Ah cell...`);
 
         // Animate process steps
         for (let i = 1; i <= 4; i++) {
@@ -532,22 +536,25 @@ const PCBManufacturing = () => {
         }
 
         try {
-            const res = await controlEtching({
-                copper_weight_oz: etchingParams.copperWeight,
-                chemical_concentration_pct: etchingParams.concentration
-            });
-            setEtchingResult(res);
-            addLog(`Etching: Speed ${res.control_actions?.conveyor_speed_m_min}m/min, Pressure ${res.control_actions?.spray_pressure_bar}bar`, 'success');
+            const res = await optimizeFormationProtocol(
+                formationParams.chemistry,
+                formationParams.capacityAh,
+                formationParams.ambientTemp,
+                formationParams.targetCycles
+            );
+            setFormationResult(res);
+            const protocol = res.formation_protocol;
+            addLog(`Formation: ${protocol?.total_time_hours || 48}h total, SEI Quality: ${protocol?.predicted_sei_quality || 90}%`, 'success');
         } catch (e) { addLog(e.message, 'error'); }
 
         setProcessAnimationStep(0);
         setProcessRunning(false);
     };
 
-    const handleLaminationPredict = async () => {
+    const handleWeldingOptimization = async () => {
         setProcessRunning(true);
-        setLaminationResult(null);
-        addLog(`Predicting Lamination Scaling: ${laminationParams.material}, ${laminationParams.layers} layers...`);
+        setWeldingResult(null);
+        addLog(`Optimizing Tab Welding: ${weldingParams.material}, ${weldingParams.thicknessMm}mm thickness...`);
 
         for (let i = 1; i <= 4; i++) {
             setProcessAnimationStep(i);
@@ -555,12 +562,14 @@ const PCBManufacturing = () => {
         }
 
         try {
-            const res = await predictLamination({
-                material_type: laminationParams.material,
-                layer_count: laminationParams.layers
-            });
-            setLaminationResult(res);
-            addLog(`Lamination: X=${res.scaling_factors?.x_comp}mils, Y=${res.scaling_factors?.y_comp}mils compensation`, 'success');
+            const res = await optimizeTabWelding(
+                weldingParams.material,
+                weldingParams.thicknessMm,
+                weldingParams.weldType
+            );
+            setWeldingResult(res);
+            const params = res.recommended_parameters?.laser;
+            addLog(`Welding: ${params?.power_w || 2500}W, ${params?.pulse_duration_ms || 3}ms pulse, ${res.expected_weld_strength_n || 55}N strength`, 'success');
         } catch (e) { addLog(e.message, 'error'); }
 
         setProcessAnimationStep(0);
@@ -649,6 +658,7 @@ const PCBManufacturing = () => {
             const res = await analyzeMaintenanceSignals({ machine_id: "Drill-01", fft_peaks: [{ freq: 1200, amp: 0.9 }], rms_vibration: 1.5 });
             setMaintResult(res);
 
+            // Using weld terminology: weld_count maps to hits, spatter_level to resin_smear, power_instability to feed_rate_deviation
             const toolRes = await predictToolLife({ hits: 8500, resin_smear_level: "high", feed_rate_deviation: 0.1 });
             setToolLife(toolRes);
             addLog("Predictive Maintenance: Alerts found", 'warning');
@@ -672,7 +682,7 @@ const PCBManufacturing = () => {
         try {
             const res = await getDrillInventory();
             setDrillInventory(res);
-            addLog(`Drill inventory: ${res.critical} critical, ${res.warning} warning`, res.critical > 0 ? 'error' : 'success');
+            addLog(`Electrode inventory: ${res.critical} critical, ${res.warning} warning`, res.critical > 0 ? 'error' : 'success');
         } catch (e) { addLog(e.message, 'error'); }
         setLoading(false);
     };
@@ -730,14 +740,14 @@ const PCBManufacturing = () => {
         }, 3000);
     };
 
-    // Load fleet data when maintenance tab is selected
+    // Load fleet data when line monitoring tab is selected
     useEffect(() => {
-        if (activePhase === 4 && !fleetData) {
+        if (activeTab === 3 && !fleetData) {
             loadFleetStatus();
             loadDrillInventory();
             loadAnomalyHistory();
         }
-    }, [activePhase]);
+    }, [activeTab]);
 
     return (
         <div className="flex flex-col h-full p-4 space-y-6 overflow-y-auto">
@@ -762,409 +772,27 @@ const PCBManufacturing = () => {
             {/* Header */}
             <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-6 rounded-2xl border border-white/10 flex justify-between items-center">
                 <div>
-                    <h2 className="text-2xl font-bold text-white">PCB Factory <span className="text-purple-400">Gemini 3</span></h2>
-                    <p className="text-slate-400 text-sm">Advanced Agentic Manufacturing</p>
+                    <h2 className="text-2xl font-bold text-white">BMS & Pack Assembly <span className="text-purple-400">Gemini 3</span></h2>
+                    <p className="text-slate-400 text-sm">Design Intelligence & Assembly QC</p>
                 </div>
                 <div className="flex gap-4">
-                    <LiveStatCard icon={Factory} label="Active Lines" value={8} unit="" color="cyan" />
-                    <LiveStatCard icon={TrendingUp} label="Yield" value={98.5} unit="%" color="emerald" pulse />
+                    <LiveStatCard icon={Factory} label="Assembly Lines" value={4} unit="" color="cyan" />
+                    <LiveStatCard icon={TrendingUp} label="Pack Yield" value={98.5} unit="%" color="emerald" pulse />
                 </div>
             </div>
 
             {/* Timeline */}
-            <ProcessFlowTimeline activePhase={activePhase} onPhaseClick={setActivePhase} />
+            <TabNavigation activeTab={activeTab} onTabClick={setActiveTab} />
 
             {/* Logs Overlay */}
             <div className="fixed bottom-4 right-4 w-80 bg-black/80 rounded-lg p-2 text-xs font-mono text-slate-300 pointer-events-none z-50">
                 {logs.map((l, i) => <div key={i}>{l}</div>)}
             </div>
 
-            {/* --- PHASE 1 CONTENT --- */}
-            {activePhase === 1 && (
-                <div className="grid grid-cols-2 gap-6 animate-in slide-in-from-right fade-in duration-500">
-                    {/* LEFT: Generative Design with Clarification Chat */}
-                    <div className="bg-slate-800/50 p-6 rounded-xl border border-white/5 min-w-0 overflow-hidden">
-                        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                            <CircuitBoard className="text-purple-400" /> Generative Design (Gemini 3 Pro)
-                        </h3>
-                        <div className="space-y-4">
-                            <div className="relative">
-                                <textarea
-                                    value={designSpecs}
-                                    onChange={(e) => setDesignSpecs(e.target.value)}
-                                    placeholder="Describe your PCB requirements (e.g., 'BMS 4S LiPo with USB-C PD, I2C, and 50-ohm impedance traces')..."
-                                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl p-3 text-sm text-slate-300 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none resize-none h-24"
-                                />
-                                <div className="absolute bottom-2 right-2 text-xs text-slate-500">
-                                    Gemini 3 "Engineering Intern" Mode
-                                </div>
-                            </div>
 
-                            <button
-                                onClick={() => handleGenerateSchematic()}
-                                disabled={loading || !designSpecs.trim()}
-                                className="w-full py-2 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 rounded-lg text-white font-medium shadow-lg shadow-purple-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                            >
-                                {loading ? 'Analyzing Specs...' : 'Generate Schematic'}
-                            </button>
 
-                            {/* Clarification Chat UI */}
-                            {clarifyingQuestions && (
-                                <div className="p-4 bg-gradient-to-br from-amber-900/20 to-slate-900/80 rounded-xl border border-amber-500/30 animate-in fade-in duration-300">
-                                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/5">
-                                        <MessageCircle className="w-4 h-4 text-amber-400" />
-                                        <span className="text-amber-300 font-bold text-sm">Engineering Intern Needs Clarification</span>
-                                    </div>
-                                    {understoodSoFar && (
-                                        <div className="text-xs text-slate-400 mb-3 bg-white/5 p-2 rounded-lg">
-                                            Understood so far: <span className="text-slate-200">{understoodSoFar}</span>
-                                        </div>
-                                    )}
-                                    <ul className="space-y-2 mb-4">
-                                        {clarifyingQuestions.map((q, i) => (
-                                            <li key={i} className="flex items-start gap-2 text-sm text-slate-300">
-                                                <span className="text-amber-400 font-mono text-xs mt-0.5">{i + 1}.</span>
-                                                {q}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                    <div className="flex gap-2">
-                                        <input
-                                            type="text"
-                                            value={clarifyAnswer}
-                                            onChange={(e) => setClarifyAnswer(e.target.value)}
-                                            onKeyDown={(e) => e.key === 'Enter' && handleClarifySubmit()}
-                                            placeholder="Answer the questions above..."
-                                            className="flex-1 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
-                                        />
-                                        <button
-                                            onClick={handleClarifySubmit}
-                                            disabled={loading || !clarifyAnswer.trim()}
-                                            className="px-4 py-2 bg-amber-600 hover:bg-amber-500 rounded-lg text-white disabled:opacity-50 transition-all"
-                                        >
-                                            <Send className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Block Diagram Visualization */}
-                            {schematic && schematic.design_plan && (
-                                <div className="p-4 bg-black/40 rounded-xl border border-purple-500/30 animate-in fade-in duration-300 space-y-4 overflow-hidden">
-                                    {/* Header */}
-                                    <div className="flex justify-between items-center pb-2 border-b border-white/5">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                                            <span className="text-purple-300 font-bold text-sm">System Block Diagram</span>
-                                        </div>
-                                        <span className="text-[10px] text-slate-500 font-mono">{schematic.design_plan.blocks?.length || 0} subsystems</span>
-                                    </div>
-
-                                    {/* SVG Block Diagram */}
-                                    <div className="bg-slate-950/60 rounded-lg border border-white/5 p-3 overflow-x-auto">
-                                        <SchematicBlockDiagram designPlan={schematic.design_plan} />
-                                    </div>
-
-                                    {/* Signal Flows Legend */}
-                                    {schematic.design_plan.interconnections?.length > 0 && (
-                                        <div className="overflow-hidden">
-                                            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                                                <div className="w-4 h-[1.5px] bg-gradient-to-r from-purple-500 to-cyan-500 rounded" />
-                                                Signal Flows
-                                            </div>
-                                            <div className="space-y-1">
-                                                {schematic.design_plan.interconnections.map((ic, i) => (
-                                                    <div key={i} className="text-[11px] text-cyan-300/90 bg-cyan-950/40 px-2.5 py-1.5 rounded-md font-mono border border-cyan-500/15 break-words overflow-hidden">
-                                                        {ic}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Component Recommendations */}
-                                    {schematic.component_recommendations?.length > 0 && (
-                                        <div>
-                                            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5">Component Selection</div>
-                                            <div className="space-y-1.5">
-                                                {schematic.component_recommendations.map((comp, i) => (
-                                                    <div key={i} className="bg-white/[0.03] px-3 py-2 rounded-lg border border-white/5 hover:border-purple-500/20 transition-colors overflow-hidden">
-                                                        <div className="flex items-center gap-2 mb-1 min-w-0">
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
-                                                            <span className="text-xs text-white font-medium truncate">{comp.function}</span>
-                                                        </div>
-                                                        <div className="text-[11px] text-slate-400 pl-3.5 break-words">{comp.spec}</div>
-                                                        {comp.verify && (
-                                                            <div className="mt-1 pl-3.5">
-                                                                <span className="text-[10px] text-amber-400/70 bg-amber-900/20 px-1.5 py-0.5 rounded border border-amber-500/10 inline-block break-words">{comp.verify}</span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* IPC Constraint Rules */}
-                                    {schematic.constraint_definitions?.length > 0 && (
-                                        <div>
-                                            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5">IPC Design Rules</div>
-                                            <div className="space-y-1.5">
-                                                {schematic.constraint_definitions.map((c, i) => (
-                                                    <div key={i} className="flex items-start gap-2 text-xs text-amber-300/80 bg-amber-950/20 px-3 py-2 rounded-lg border border-amber-500/10 overflow-hidden">
-                                                        <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0 text-amber-500/60" />
-                                                        <span className="break-words min-w-0">{c}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Fallback for schematic without design_plan structure */}
-                            {schematic && !schematic.design_plan && !schematic.clarifying_questions && (
-                                <div className="p-4 bg-black/40 rounded-xl border border-purple-500/30 text-xs font-mono animate-in fade-in duration-300">
-                                    <div className="flex justify-between items-center mb-2 pb-2 border-b border-white/5">
-                                        <span className="text-purple-300 font-bold">Design Output</span>
-                                        <CheckCircle className="w-3 h-3 text-emerald-400" />
-                                    </div>
-                                    <pre className="text-slate-400 overflow-x-auto whitespace-pre-wrap max-h-60 custom-scrollbar">
-                                        {JSON.stringify(schematic, null, 2)}
-                                    </pre>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* RIGHT: RL Routing, Datasheet, Supply */}
-                    <div className="bg-slate-800/50 p-6 rounded-xl border border-white/5 min-w-0 overflow-hidden">
-                        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                            <Monitor className="text-cyan-400" /> Deep Tech RL & Supply
-                        </h3>
-                        <div className="flex gap-3 mb-4">
-                            {!rlRunning ? (
-                                <button onClick={handleRLRouting} className="flex-1 py-2 bg-cyan-600 rounded-lg text-white hover:bg-cyan-500 flex items-center justify-center gap-2">
-                                    <Play className="w-4 h-4" /> Run RL Agent
-                                </button>
-                            ) : (
-                                <button onClick={stopRLRouting} className="flex-1 py-2 bg-red-600 rounded-lg text-white hover:bg-red-500 flex items-center justify-center gap-2">
-                                    <StopCircle className="w-4 h-4" /> Stop RL Agent
-                                </button>
-                            )}
-                            <button onClick={handleSupplyRisk} className="flex-1 py-2 bg-amber-600 rounded-lg text-white hover:bg-amber-500">Check Supply Risk</button>
-                        </div>
-
-                        {/* RL Grid Visualization */}
-                        {rlGrid && (
-                            <div className="mb-4 p-3 bg-black/40 rounded-xl border border-cyan-500/20">
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-xs text-cyan-400 font-semibold">Routing Grid ({rlGrid.grid_size[0]}x{rlGrid.grid_size[1]})</span>
-                                    {rlRunning && <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />}
-                                    {!rlRunning && rlPathHistory.length > 1 && (
-                                        <span className="text-xs text-emerald-400">{rlPathHistory.length - 1} steps</span>
-                                    )}
-                                </div>
-                                <div className="grid gap-[2px] mx-auto w-fit" style={{ gridTemplateColumns: `repeat(${rlGrid.grid_size[1]}, 1fr)` }}>
-                                    {Array.from({ length: rlGrid.grid_size[0] }).map((_, row) =>
-                                        Array.from({ length: rlGrid.grid_size[1] }).map((_, col) => {
-                                            const isStart = row === rlGrid.start[0] && col === rlGrid.start[1];
-                                            const isTarget = row === rlGrid.target[0] && col === rlGrid.target[1];
-                                            const isObstacle = rlGrid.obstacles.some(o => o[0] === row && o[1] === col);
-                                            const pathIdx = rlPathHistory.findIndex(p => p[0] === row && p[1] === col);
-                                            const isPath = pathIdx !== -1;
-                                            const isHead = rlPathHistory.length > 0 &&
-                                                rlPathHistory[rlPathHistory.length - 1][0] === row &&
-                                                rlPathHistory[rlPathHistory.length - 1][1] === col;
-
-                                            let cellClass = 'w-5 h-5 rounded-sm transition-all duration-200 ';
-                                            if (isStart) cellClass += 'bg-emerald-500 shadow-lg shadow-emerald-500/30';
-                                            else if (isTarget) cellClass += 'bg-purple-500 shadow-lg shadow-purple-500/30';
-                                            else if (isObstacle) cellClass += 'bg-red-800/60 border border-red-500/30';
-                                            else if (isHead) cellClass += 'bg-cyan-400 shadow-lg shadow-cyan-400/40 animate-pulse';
-                                            else if (isPath) cellClass += 'bg-cyan-600/60 border border-cyan-500/20';
-                                            else cellClass += 'bg-slate-800/80 border border-slate-700/30';
-
-                                            return <div key={`${row}-${col}`} className={cellClass} title={`[${row},${col}]`} />;
-                                        })
-                                    )}
-                                </div>
-                                <div className="flex gap-4 mt-2 text-[10px] text-slate-500 justify-center">
-                                    <span className="flex items-center gap-1"><div className="w-2 h-2 bg-emerald-500 rounded-sm" /> Start</span>
-                                    <span className="flex items-center gap-1"><div className="w-2 h-2 bg-purple-500 rounded-sm" /> Target</span>
-                                    <span className="flex items-center gap-1"><div className="w-2 h-2 bg-red-800 rounded-sm" /> Obstacle</span>
-                                    <span className="flex items-center gap-1"><div className="w-2 h-2 bg-cyan-600 rounded-sm" /> Trace</span>
-                                </div>
-                            </div>
-                        )}
-
-                        {rlPath && !rlRunning && (
-                            <div className="p-2.5 mb-3 bg-black/40 rounded-lg text-xs font-mono text-cyan-300 overflow-hidden">
-                                <div className="flex flex-wrap gap-x-3 gap-y-1">
-                                    <span>Last: {rlPath.action}</span>
-                                    <span>→ [{rlPath.next_move?.join(',')}]</span>
-                                    <span>Conf: {((rlPath.confidence || 0) * 100).toFixed(0)}%</span>
-                                </div>
-                                {rlPath.reasoning && <div className="text-slate-500 mt-1.5 break-words text-[11px] leading-relaxed">{rlPath.reasoning}</div>}
-                            </div>
-                        )}
-
-                        {/* Datasheet Parser */}
-                        <div className="mb-4">
-                            <div className="text-xs text-slate-400 mb-2 flex items-center gap-1 font-semibold">
-                                <FileText className="w-3 h-3 text-purple-400" /> Intelligent Datasheet Parsing
-                            </div>
-
-                            <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-xl cursor-pointer transition-all group overflow-hidden relative
-                                ${parsingDatasheet ? 'border-purple-500 bg-purple-900/10' : 'border-slate-700 bg-slate-800/50 hover:bg-slate-800 hover:border-purple-400'}`}>
-
-                                {parsingDatasheet ? (
-                                    <div className="flex flex-col items-center animate-pulse">
-                                        <RefreshCw className="w-6 h-6 text-purple-400 animate-spin mb-2" />
-                                        <p className="text-xs text-purple-300 font-mono">Parsing Technical Data...</p>
-                                    </div>
-                                ) : (
-                                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                        <Upload className="w-6 h-6 text-slate-500 group-hover:text-purple-400 mb-2 transition-colors" />
-                                        <p className="text-xs text-slate-400">
-                                            <span className="font-semibold">Upload Datasheet</span> (PDF/Image)
-                                        </p>
-                                    </div>
-                                )}
-
-                                <div className="mt-3">
-                                    <label className="block text-xs text-slate-400 mb-1">OPTIONAL: Verification Constraints</label>
-                                    <input
-                                        type="text"
-                                        placeholder="e.g. Vin > 24V, Iout > 2A..."
-                                        className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-300 focus:border-purple-500 outline-none"
-                                        id="ds-constraints"
-                                    />
-                                </div>
-
-                                <input
-                                    type="file"
-                                    accept=".pdf,image/*"
-                                    className="hidden"
-                                    disabled={parsingDatasheet}
-                                    onChange={async (e) => {
-                                        const file = e.target.files[0];
-                                        if (!file) return;
-                                        setParsingDatasheet(true);
-                                        addLog(`Parsing Datasheet: ${file.name}...`);
-
-                                        // Get constraints if any
-                                        const constraintsInput = document.getElementById('ds-constraints')?.value;
-                                        let constraints = null;
-                                        if (constraintsInput && constraintsInput.trim()) {
-                                            constraints = { requirements: constraintsInput };
-                                        }
-
-                                        try {
-                                            const res = await parseDatasheet(file, constraints);
-                                            if (res.error) {
-                                                addLog(`Gemini Error: ${res.error}`, 'error');
-                                            } else {
-                                                setDatasheetResult(res);
-                                                addLog(`Part Found: ${res.component_info?.part_number}`, 'success');
-                                            }
-                                        } catch (err) { addLog(err.message, 'error'); }
-                                        setParsingDatasheet(false);
-                                    }}
-                                />
-                            </label>
-
-                            {datasheetResult && (
-                                <div className="mt-4 bg-gradient-to-br from-slate-900/90 to-purple-900/20 rounded-xl p-0.5 border border-purple-500/30 animate-in fade-in zoom-in duration-300 relative overflow-hidden group">
-                                    <div className="absolute inset-0 bg-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-
-                                    <div className="bg-slate-900/90 rounded-[11px] p-4 relative z-10">
-                                        <div className="flex justify-between items-start mb-3 border-b border-white/5 pb-2 gap-2 overflow-hidden">
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <span className="text-base font-bold text-white truncate">{datasheetResult.component_info?.part_number}</span>
-                                                    <span className="text-[10px] px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded-full border border-purple-500/30 shrink-0">
-                                                        {datasheetResult.component_info?.manufacturer}
-                                                    </span>
-                                                </div>
-                                                <div className="text-xs text-slate-400 mt-1 truncate">{datasheetResult.component_info?.description}</div>
-                                            </div>
-                                            <div className="bg-emerald-500/20 p-1.5 rounded-full shrink-0">
-                                                <CheckCircle className="w-4 h-4 text-emerald-400" />
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-3 mb-3">
-                                            <div className="bg-white/5 p-2 rounded-lg border border-white/5">
-                                                <div className="text-[10px] text-cyan-400 uppercase tracking-wider mb-1 flex items-center gap-1">
-                                                    <Zap className="w-3 h-3" /> Electrical
-                                                </div>
-                                                <div className="text-xs font-mono text-slate-200">
-                                                    <div className="flex justify-between"><span>Max Vin:</span> <span className="text-cyan-300">{datasheetResult.electrical_specs?.input_voltage_max}</span></div>
-                                                    <div className="flex justify-between"><span>Max Iout:</span> <span className="text-cyan-300">{datasheetResult.electrical_specs?.output_current_max}</span></div>
-                                                </div>
-                                            </div>
-                                            <div className="bg-white/5 p-2 rounded-lg border border-white/5">
-                                                <div className="text-[10px] text-orange-400 uppercase tracking-wider mb-1 flex items-center gap-1">
-                                                    <Thermometer className="w-3 h-3" /> Thermal
-                                                </div>
-                                                <div className="text-xs font-mono text-slate-200">
-                                                    <div className="flex justify-between"><span>Tj Max:</span> <span className="text-orange-300">{datasheetResult.thermal_specs?.max_junction_temp}</span></div>
-                                                    <div className="flex justify-between"><span>Rth:</span> <span className="text-orange-300">{datasheetResult.thermal_specs?.package_thermal_resistance}</span></div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Constraint Check Results */}
-                                        {datasheetResult.constraint_check?.length > 0 && (
-                                            <div className="mb-3">
-                                                <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Constraint Verification</div>
-                                                <div className="space-y-1">
-                                                    {datasheetResult.constraint_check.map((cc, i) => (
-                                                        <div key={i} className={`text-xs px-2.5 py-1.5 rounded flex items-center justify-between gap-2 overflow-hidden
-                                                            ${cc.result === 'PASS' ? 'bg-emerald-900/20 border border-emerald-500/20 text-emerald-300' : 'bg-red-900/20 border border-red-500/20 text-red-300'}`}>
-                                                            <span className="truncate min-w-0">{cc.constraint}</span>
-                                                            <span className="font-bold shrink-0">{cc.result}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        <div className="bg-black/40 rounded-lg p-2 border border-white/5">
-                                            <div className="text-[10px] text-slate-500 mb-1 flex justify-between">
-                                                <span>DETECTED PINOUT</span>
-                                                <span className="text-[10px] text-purple-400">{datasheetResult.pin_configuration?.length || 0} Pins</span>
-                                            </div>
-                                            <div className="flex flex-wrap gap-1.5">
-                                                {datasheetResult.pin_configuration?.map((pin, i) => (
-                                                    <span key={i} className="text-[10px] pl-1.5 pr-2 py-0.5 bg-slate-800 rounded-sm text-slate-300 border-l-2 border-purple-500 flex items-center gap-1">
-                                                        <span className="font-bold text-slate-500">{pin.pin}</span>
-                                                        <span className="font-mono text-purple-200">{pin.name}</span>
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {supplyRisk && (
-                            <div className="p-2.5 bg-black/40 rounded-lg text-xs font-mono text-amber-300 overflow-hidden">
-                                <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Supply Risk Analysis</div>
-                                <pre className="text-amber-300/80 overflow-x-auto whitespace-pre-wrap break-words max-h-40 custom-scrollbar text-[11px]">
-                                    {JSON.stringify(supplyRisk, null, 2)}
-                                </pre>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )
-            }
-
-            {/* --- PHASE 2 CONTENT: SMART PROCESS CONTROL --- */}
-            {activePhase === 2 && (
+            {/* --- TAB 1: FORMATION & WELDING OPTIMIZER --- */}
+            {activeTab === 1 && (
                 <div className="space-y-6 animate-in slide-in-from-right fade-in duration-500">
                     {/* Process Flow Header */}
                     <div className="bg-gradient-to-r from-slate-900 via-yellow-900/20 to-slate-900 p-4 rounded-xl border border-yellow-500/20">
@@ -1174,8 +802,8 @@ const PCBManufacturing = () => {
                                     <Zap className="w-6 h-6 text-yellow-400" />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-bold text-white">Adaptive Process Control</h2>
-                                    <p className="text-sm text-slate-400">AI-Driven Closed-Loop Manufacturing (Gemini 3 Flash)</p>
+                                    <h2 className="text-xl font-bold text-white">Formation & Assembly Control</h2>
+                                    <p className="text-sm text-slate-400">AI-Optimized Battery Cell Processing (Gemini 3 Flash)</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -1191,34 +819,30 @@ const PCBManufacturing = () => {
                         {/* Process Flow Visualization */}
                         <div className="mt-6 flex items-center justify-between px-8">
                             {[
-                                { id: 'etching', icon: Zap, label: 'Chemical Etching', color: 'cyan' },
-                                { id: 'lamination', icon: Layers, label: 'Hot Press Lamination', color: 'orange' },
-                                { id: 'plating', icon: Box, label: 'Copper Plating', color: 'emerald' }
+                                { id: 'etching', icon: Zap, label: 'Formation Cycling', color: 'cyan' },
+                                { id: 'lamination', icon: Layers, label: 'Electrolyte Fill', color: 'orange' },
+                                { id: 'plating', icon: Box, label: 'Tab Welding', color: 'emerald' }
                             ].map((process, i) => (
                                 <React.Fragment key={process.id}>
                                     <button
                                         onClick={() => setActiveProcess(process.id)}
-                                        className={`relative flex flex-col items-center p-4 rounded-xl transition-all duration-300 ${
-                                            activeProcess === process.id
-                                                ? `bg-${process.color}-500/20 border-2 border-${process.color}-500/50 scale-105`
-                                                : 'bg-slate-800/50 border border-white/5 hover:border-white/20'
-                                        }`}
+                                        className={`relative flex flex-col items-center p-4 rounded-xl transition-all duration-300 ${activeProcess === process.id
+                                            ? `bg-${process.color}-500/20 border-2 border-${process.color}-500/50 scale-105`
+                                            : 'bg-slate-800/50 border border-white/5 hover:border-white/20'
+                                            }`}
                                     >
                                         {processRunning && activeProcess === process.id && (
                                             <div className="absolute inset-0 rounded-xl overflow-hidden">
                                                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
                                             </div>
                                         )}
-                                        <div className={`p-3 rounded-full mb-2 ${
-                                            activeProcess === process.id ? `bg-${process.color}-500/30` : 'bg-white/5'
-                                        }`}>
-                                            <process.icon className={`w-6 h-6 ${
-                                                activeProcess === process.id ? `text-${process.color}-400` : 'text-slate-400'
-                                            }`} />
+                                        <div className={`p-3 rounded-full mb-2 ${activeProcess === process.id ? `bg-${process.color}-500/30` : 'bg-white/5'
+                                            }`}>
+                                            <process.icon className={`w-6 h-6 ${activeProcess === process.id ? `text-${process.color}-400` : 'text-slate-400'
+                                                }`} />
                                         </div>
-                                        <span className={`text-sm font-medium ${
-                                            activeProcess === process.id ? 'text-white' : 'text-slate-400'
-                                        }`}>{process.label}</span>
+                                        <span className={`text-sm font-medium ${activeProcess === process.id ? 'text-white' : 'text-slate-400'
+                                            }`}>{process.label}</span>
                                         {activeProcess === process.id && (
                                             <div className={`absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-t-8 border-transparent border-t-${process.color}-500/50`} />
                                         )}
@@ -1239,63 +863,85 @@ const PCBManufacturing = () => {
                     <div className="grid grid-cols-3 gap-6">
                         {/* Left: Process Control Panel */}
                         <div className="col-span-2 bg-slate-800/50 p-6 rounded-xl border border-white/5">
-                            {/* ETCHING CONTROL */}
+                            {/* FORMATION CYCLING CONTROL */}
                             {activeProcess === 'etching' && (
                                 <div className="space-y-6 animate-in fade-in duration-300">
                                     <div className="flex items-center justify-between">
                                         <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                                            <Zap className="text-cyan-400" /> Chemical Etching Control
+                                            <Zap className="text-cyan-400" /> Formation Protocol Optimization
                                         </h3>
-                                        <span className="text-xs px-2 py-1 bg-cyan-500/20 text-cyan-300 rounded-full">Cupric Chloride Process</span>
+                                        <span className="text-xs px-2 py-1 bg-cyan-500/20 text-cyan-300 rounded-full">Gemini AI Powered</span>
                                     </div>
 
                                     {/* Parameter Controls */}
                                     <div className="grid grid-cols-2 gap-6">
                                         <div className="space-y-4">
+                                            {/* Chemistry Selection */}
                                             <div className="p-4 bg-black/30 rounded-xl border border-white/5">
-                                                <div className="flex justify-between items-center mb-3">
-                                                    <label className="text-sm text-slate-300">Copper Weight</label>
-                                                    <span className="text-lg font-bold text-cyan-400 font-mono">{etchingParams.copperWeight}oz</span>
-                                                </div>
-                                                <input
-                                                    type="range"
-                                                    min="0.5"
-                                                    max="3"
-                                                    step="0.5"
-                                                    value={etchingParams.copperWeight}
-                                                    onChange={(e) => setEtchingParams(p => ({ ...p, copperWeight: parseFloat(e.target.value) }))}
-                                                    className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                                                />
-                                                <div className="flex justify-between text-[10px] text-slate-500 mt-1">
-                                                    <span>0.5oz</span>
-                                                    <span>1oz (Std)</span>
-                                                    <span>2oz</span>
-                                                    <span>3oz</span>
+                                                <label className="text-sm text-slate-300 mb-3 block">Cell Chemistry</label>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    {['NMC', 'LFP', 'NCA'].map((chem) => (
+                                                        <button
+                                                            key={chem}
+                                                            onClick={() => setFormationParams(p => ({ ...p, chemistry: chem }))}
+                                                            className={`p-2 rounded-lg text-center transition-all ${formationParams.chemistry === chem
+                                                                ? 'bg-cyan-500/20 border-2 border-cyan-500/50 text-cyan-300'
+                                                                : 'bg-slate-800/50 border border-white/5 text-slate-400 hover:border-white/20'
+                                                                }`}
+                                                        >
+                                                            <div className="font-medium text-sm">{chem}</div>
+                                                        </button>
+                                                    ))}
                                                 </div>
                                             </div>
 
+                                            {/* Capacity Slider */}
                                             <div className="p-4 bg-black/30 rounded-xl border border-white/5">
                                                 <div className="flex justify-between items-center mb-3">
-                                                    <label className="text-sm text-slate-300">Chemical Concentration</label>
-                                                    <span className="text-lg font-bold text-cyan-400 font-mono">{etchingParams.concentration}%</span>
+                                                    <label className="text-sm text-slate-300">Cell Capacity</label>
+                                                    <span className="text-lg font-bold text-cyan-400 font-mono">{formationParams.capacityAh}Ah</span>
                                                 </div>
                                                 <input
                                                     type="range"
-                                                    min="60"
-                                                    max="140"
-                                                    step="10"
-                                                    value={etchingParams.concentration}
-                                                    onChange={(e) => setEtchingParams(p => ({ ...p, concentration: parseInt(e.target.value) }))}
+                                                    min="1"
+                                                    max="100"
+                                                    step="1"
+                                                    value={formationParams.capacityAh}
+                                                    onChange={(e) => setFormationParams(p => ({ ...p, capacityAh: parseFloat(e.target.value) }))}
                                                     className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
                                                 />
                                                 <div className="flex justify-between text-[10px] text-slate-500 mt-1">
-                                                    <span>60%</span>
-                                                    <span>100% (Std)</span>
-                                                    <span>140%</span>
+                                                    <span>1Ah</span>
+                                                    <span>5Ah (21700)</span>
+                                                    <span>50Ah</span>
+                                                    <span>100Ah</span>
                                                 </div>
-                                                {etchingParams.concentration > 120 && (
+                                            </div>
+
+                                            {/* Temperature */}
+                                            <div className="p-4 bg-black/30 rounded-xl border border-white/5">
+                                                <div className="flex justify-between items-center mb-3">
+                                                    <label className="text-sm text-slate-300">Ambient Temperature</label>
+                                                    <span className="text-lg font-bold text-cyan-400 font-mono">{formationParams.ambientTemp}°C</span>
+                                                </div>
+                                                <input
+                                                    type="range"
+                                                    min="15"
+                                                    max="45"
+                                                    step="5"
+                                                    value={formationParams.ambientTemp}
+                                                    onChange={(e) => setFormationParams(p => ({ ...p, ambientTemp: parseInt(e.target.value) }))}
+                                                    className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                                                />
+                                                <div className="flex justify-between text-[10px] text-slate-500 mt-1">
+                                                    <span>15°C</span>
+                                                    <span>25°C (Opt)</span>
+                                                    <span>35°C</span>
+                                                    <span>45°C</span>
+                                                </div>
+                                                {formationParams.ambientTemp > 35 && (
                                                     <div className="mt-2 text-[10px] text-amber-400 flex items-center gap-1">
-                                                        <AlertTriangle className="w-3 h-3" /> High concentration - delamination risk
+                                                        <AlertTriangle className="w-3 h-3" /> High temp may affect SEI quality
                                                     </div>
                                                 )}
                                             </div>
@@ -1303,129 +949,130 @@ const PCBManufacturing = () => {
 
                                         {/* Visual Process Animation */}
                                         <div className="relative bg-black/40 rounded-xl border border-cyan-500/20 p-4 overflow-hidden">
-                                            <div className="absolute top-2 right-2 text-[10px] text-cyan-400">LIVE PREVIEW</div>
+                                            <div className="absolute top-2 right-2 text-[10px] text-cyan-400">FORMATION CHAMBER</div>
 
-                                            {/* Animated Conveyor */}
+                                            {/* Formation Chamber Visualization */}
                                             <div className="h-full flex flex-col justify-center items-center">
                                                 <div className="relative w-full h-24 bg-slate-900 rounded-lg overflow-hidden">
-                                                    {/* Conveyor belt */}
-                                                    <div className="absolute bottom-0 left-0 right-0 h-4 bg-slate-700 flex items-center">
-                                                        <div className={`flex gap-2 ${processRunning ? 'animate-marquee' : ''}`} style={{ animation: processRunning ? 'marquee 2s linear infinite' : 'none' }}>
-                                                            {[...Array(20)].map((_, i) => (
-                                                                <div key={i} className="w-4 h-2 bg-slate-600 rounded-sm" />
+                                                    {/* Chamber walls */}
+                                                    <div className="absolute inset-2 border-2 border-slate-600 rounded-lg">
+                                                        {/* Cell stack visualization */}
+                                                        <div className="absolute inset-4 flex items-center justify-center gap-1">
+                                                            {[...Array(6)].map((_, i) => (
+                                                                <div key={i} className={`w-4 h-12 rounded-sm transition-all duration-500 ${processRunning
+                                                                    ? i % 2 === 0 ? 'bg-cyan-500/60 animate-pulse' : 'bg-emerald-500/60 animate-pulse'
+                                                                    : 'bg-slate-700'
+                                                                    }`}>
+                                                                    <div className={`w-full h-1 ${processRunning ? 'bg-yellow-400' : 'bg-slate-600'} rounded-t-sm`} />
+                                                                </div>
                                                             ))}
                                                         </div>
-                                                    </div>
 
-                                                    {/* PCB on conveyor */}
-                                                    <div className={`absolute bottom-4 transition-all duration-1000 ${
-                                                        processRunning ? 'left-[70%]' : 'left-[10%]'
-                                                    }`}>
-                                                        <div className="w-16 h-10 bg-emerald-700 rounded border-2 border-emerald-500/50 flex items-center justify-center">
-                                                            <span className="text-[8px] text-emerald-200">PCB</span>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Spray nozzles */}
-                                                    <div className="absolute top-2 left-1/4 right-1/4 flex justify-around">
-                                                        {[...Array(3)].map((_, i) => (
-                                                            <div key={i} className="flex flex-col items-center">
-                                                                <div className="w-3 h-3 bg-slate-600 rounded-full" />
-                                                                {processRunning && (
-                                                                    <div className="w-0.5 h-8 bg-gradient-to-b from-cyan-400 to-transparent animate-pulse" />
-                                                                )}
+                                                        {/* Temperature indicator */}
+                                                        {processRunning && (
+                                                            <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[8px] text-cyan-300">
+                                                                {formationParams.ambientTemp}°C
                                                             </div>
-                                                        ))}
+                                                        )}
                                                     </div>
                                                 </div>
 
                                                 <div className="mt-4 text-xs text-slate-400 text-center">
-                                                    {processRunning ? 'Etching in progress...' : 'Ready for etching'}
+                                                    {processRunning ? 'AI optimizing formation protocol...' : `${formationParams.chemistry} ${formationParams.capacityAh}Ah cell ready`}
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
 
                                     <button
-                                        onClick={handleEtchingControl}
+                                        onClick={handleFormationControl}
                                         disabled={processRunning}
                                         className="w-full py-3 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 rounded-xl text-white font-semibold shadow-lg shadow-cyan-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
                                     >
                                         {processRunning ? (
                                             <>
-                                                <RefreshCw className="w-5 h-5 animate-spin" /> Processing...
+                                                <RefreshCw className="w-5 h-5 animate-spin" /> Optimizing Protocol...
                                             </>
                                         ) : (
                                             <>
-                                                <Play className="w-5 h-5" /> Run Etching Control
+                                                <Play className="w-5 h-5" /> Generate AI Formation Protocol
                                             </>
                                         )}
                                     </button>
 
                                     {/* Results */}
-                                    {etchingResult && (
+                                    {formationResult && (
                                         <div className="p-4 bg-gradient-to-r from-cyan-900/30 to-slate-900/50 rounded-xl border border-cyan-500/30 animate-in fade-in slide-in-from-bottom-3 duration-300">
                                             <div className="flex items-center gap-2 mb-3">
                                                 <CheckCircle className="w-5 h-5 text-cyan-400" />
-                                                <span className="text-sm font-semibold text-cyan-300">Control Actions Calculated</span>
+                                                <span className="text-sm font-semibold text-cyan-300">AI Formation Protocol Generated</span>
                                             </div>
-                                            <div className="grid grid-cols-3 gap-4">
+                                            <div className="grid grid-cols-3 gap-4 mb-4">
                                                 <div className="p-3 bg-black/40 rounded-lg text-center">
-                                                    <div className="text-2xl font-bold text-cyan-400 font-mono">{etchingResult.control_actions?.conveyor_speed_m_min}</div>
-                                                    <div className="text-[10px] text-slate-400">m/min Speed</div>
+                                                    <div className="text-2xl font-bold text-cyan-400 font-mono">{formationResult.formation_protocol?.total_time_hours || 48}</div>
+                                                    <div className="text-[10px] text-slate-400">Total Hours</div>
                                                 </div>
                                                 <div className="p-3 bg-black/40 rounded-lg text-center">
-                                                    <div className="text-2xl font-bold text-cyan-400 font-mono">{etchingResult.control_actions?.spray_pressure_bar}</div>
-                                                    <div className="text-[10px] text-slate-400">bar Pressure</div>
+                                                    <div className="text-2xl font-bold text-cyan-400 font-mono">{formationResult.formation_protocol?.predicted_sei_quality || 90}%</div>
+                                                    <div className="text-[10px] text-slate-400">SEI Quality</div>
                                                 </div>
-                                                <div className={`p-3 rounded-lg text-center ${
-                                                    etchingResult.control_actions?.oxide_safety_check === 'PASS'
-                                                        ? 'bg-emerald-900/30 border border-emerald-500/30'
-                                                        : 'bg-red-900/30 border border-red-500/30'
-                                                }`}>
-                                                    <div className={`text-2xl font-bold ${
-                                                        etchingResult.control_actions?.oxide_safety_check === 'PASS' ? 'text-emerald-400' : 'text-red-400'
-                                                    }`}>
-                                                        {etchingResult.control_actions?.oxide_safety_check?.split(' ')[0]}
-                                                    </div>
-                                                    <div className="text-[10px] text-slate-400">Safety Check</div>
+                                                <div className="p-3 bg-emerald-900/30 rounded-lg text-center border border-emerald-500/30">
+                                                    <div className="text-2xl font-bold text-emerald-400">{formationResult.formation_protocol?.expected_capacity_retention_1000_cycles || 88}%</div>
+                                                    <div className="text-[10px] text-slate-400">1000-Cycle Retention</div>
                                                 </div>
                                             </div>
+                                            {/* Cycle Profile Details */}
+                                            {formationResult.formation_protocol?.cycle_profiles && (
+                                                <div className="space-y-2">
+                                                    <div className="text-[10px] text-slate-500 uppercase tracking-wider">Cycle Profiles</div>
+                                                    {formationResult.formation_protocol.cycle_profiles.slice(0, 2).map((cycle, i) => (
+                                                        <div key={i} className="p-2 bg-black/30 rounded-lg text-xs text-slate-300 flex justify-between">
+                                                            <span>Cycle {cycle.cycle}: {cycle.charge_c_rate}C charge</span>
+                                                            <span>{cycle.charge_cutoff_v}V cutoff</span>
+                                                            <span>{cycle.temperature_setpoint_c}°C</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {formationResult.technical_reasoning && (
+                                                <div className="mt-3 p-2 bg-black/20 rounded-lg text-[10px] text-slate-400">
+                                                    {formationResult.technical_reasoning}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
                             )}
 
-                            {/* LAMINATION CONTROL */}
+                            {/* TAB WELDING PARAMETER OPTIMIZATION */}
                             {activeProcess === 'lamination' && (
                                 <div className="space-y-6 animate-in fade-in duration-300">
                                     <div className="flex items-center justify-between">
                                         <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                                            <Layers className="text-orange-400" /> Lamination Scaling Prediction
+                                            <Layers className="text-orange-400" /> Tab Welding Parameter Optimization
                                         </h3>
-                                        <span className="text-xs px-2 py-1 bg-orange-500/20 text-orange-300 rounded-full">CTE Compensation</span>
+                                        <span className="text-xs px-2 py-1 bg-orange-500/20 text-orange-300 rounded-full">Gemini AI Powered</span>
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-6">
                                         <div className="space-y-4">
                                             <div className="p-4 bg-black/30 rounded-xl border border-white/5">
-                                                <label className="text-sm text-slate-300 mb-3 block">Material Type</label>
+                                                <label className="text-sm text-slate-300 mb-3 block">Tab Material</label>
                                                 <div className="grid grid-cols-1 gap-2">
-                                                    {['FR4-Standard', 'Polyimide', 'Rogers-4000'].map((mat) => (
+                                                    {['nickel', 'aluminum', 'copper'].map((mat) => (
                                                         <button
                                                             key={mat}
-                                                            onClick={() => setLaminationParams(p => ({ ...p, material: mat }))}
-                                                            className={`p-3 rounded-lg text-left transition-all ${
-                                                                laminationParams.material === mat
-                                                                    ? 'bg-orange-500/20 border-2 border-orange-500/50 text-orange-300'
-                                                                    : 'bg-slate-800/50 border border-white/5 text-slate-400 hover:border-white/20'
-                                                            }`}
+                                                            onClick={() => setWeldingParams(p => ({ ...p, material: mat }))}
+                                                            className={`p-3 rounded-lg text-left transition-all ${weldingParams.material === mat
+                                                                ? 'bg-orange-500/20 border-2 border-orange-500/50 text-orange-300'
+                                                                : 'bg-slate-800/50 border border-white/5 text-slate-400 hover:border-white/20'
+                                                                }`}
                                                         >
-                                                            <div className="font-medium">{mat}</div>
+                                                            <div className="font-medium capitalize">{mat}</div>
                                                             <div className="text-[10px] opacity-70">
-                                                                {mat === 'FR4-Standard' && 'Standard PCB material'}
-                                                                {mat === 'Polyimide' && 'High-temp flex circuits'}
-                                                                {mat === 'Rogers-4000' && 'RF/Microwave applications'}
+                                                                {mat === 'nickel' && 'Standard, good weldability'}
+                                                                {mat === 'aluminum' && 'Lightweight, oxide layer challenge'}
+                                                                {mat === 'copper' && 'High conductivity, needs more power'}
                                                             </div>
                                                         </button>
                                                     ))}
@@ -1434,125 +1081,162 @@ const PCBManufacturing = () => {
 
                                             <div className="p-4 bg-black/30 rounded-xl border border-white/5">
                                                 <div className="flex justify-between items-center mb-3">
-                                                    <label className="text-sm text-slate-300">Layer Count</label>
-                                                    <span className="text-lg font-bold text-orange-400 font-mono">{laminationParams.layers}L</span>
+                                                    <label className="text-sm text-slate-300">Tab Thickness</label>
+                                                    <span className="text-lg font-bold text-orange-400 font-mono">{weldingParams.thicknessMm}mm</span>
                                                 </div>
                                                 <input
                                                     type="range"
-                                                    min="2"
-                                                    max="16"
-                                                    step="2"
-                                                    value={laminationParams.layers}
-                                                    onChange={(e) => setLaminationParams(p => ({ ...p, layers: parseInt(e.target.value) }))}
+                                                    min="0.05"
+                                                    max="0.5"
+                                                    step="0.05"
+                                                    value={weldingParams.thicknessMm}
+                                                    onChange={(e) => setWeldingParams(p => ({ ...p, thicknessMm: parseFloat(e.target.value) }))}
                                                     className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-orange-500"
                                                 />
                                                 <div className="flex justify-between text-[10px] text-slate-500 mt-1">
-                                                    <span>2L</span>
-                                                    <span>4L</span>
-                                                    <span>8L</span>
-                                                    <span>16L</span>
+                                                    <span>0.05mm</span>
+                                                    <span>0.15mm (Std)</span>
+                                                    <span>0.3mm</span>
+                                                    <span>0.5mm</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Weld Type Selection */}
+                                            <div className="p-4 bg-black/30 rounded-xl border border-white/5">
+                                                <label className="text-sm text-slate-300 mb-3 block">Weld Type</label>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {['laser', 'ultrasonic'].map((type) => (
+                                                        <button
+                                                            key={type}
+                                                            onClick={() => setWeldingParams(p => ({ ...p, weldType: type }))}
+                                                            className={`p-2 rounded-lg text-center transition-all capitalize ${weldingParams.weldType === type
+                                                                ? 'bg-orange-500/20 border-2 border-orange-500/50 text-orange-300'
+                                                                : 'bg-slate-800/50 border border-white/5 text-slate-400 hover:border-white/20'
+                                                                }`}
+                                                        >
+                                                            {type}
+                                                        </button>
+                                                    ))}
                                                 </div>
                                             </div>
                                         </div>
 
-                                        {/* Layer Stack Visualization */}
+                                        {/* Weld Zone Visualization */}
                                         <div className="relative bg-black/40 rounded-xl border border-orange-500/20 p-4 overflow-hidden">
-                                            <div className="absolute top-2 right-2 text-[10px] text-orange-400">STACK-UP PREVIEW</div>
+                                            <div className="absolute top-2 right-2 text-[10px] text-orange-400">WELD ZONE</div>
 
                                             <div className="h-full flex items-center justify-center">
-                                                <div className="relative">
-                                                    {/* Layer stack */}
-                                                    <div className="flex flex-col items-center gap-0.5">
-                                                        {[...Array(Math.min(laminationParams.layers, 8))].map((_, i) => (
+                                                <div className="relative w-40 h-28 bg-slate-800 rounded-lg border-2 border-slate-600 overflow-hidden">
+                                                    {/* Cell terminal */}
+                                                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-20 h-8 bg-slate-500 rounded-t" />
+
+                                                    {/* Tab overlay */}
+                                                    <div className={`absolute bottom-4 left-1/2 -translate-x-1/2 w-16 h-3 rounded-sm ${weldingParams.material === 'nickel' ? 'bg-gray-400' :
+                                                        weldingParams.material === 'aluminum' ? 'bg-slate-300' : 'bg-amber-600'
+                                                        }`} />
+
+                                                    {/* Weld spots */}
+                                                    <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-2">
+                                                        {[...Array(3)].map((_, i) => (
                                                             <div
                                                                 key={i}
-                                                                className={`w-32 h-3 rounded-sm transition-all duration-300 ${
-                                                                    i % 2 === 0 ? 'bg-amber-600' : 'bg-emerald-700'
-                                                                } ${processRunning ? 'animate-pulse' : ''}`}
-                                                                style={{
-                                                                    transform: processRunning ? `scaleY(${1 + (processAnimationStep * 0.1)})` : 'scaleY(1)',
-                                                                    opacity: processRunning ? 0.7 + (i * 0.05) : 1
-                                                                }}
+                                                                className={`w-2 h-2 rounded-full transition-all duration-300 ${processRunning
+                                                                    ? 'bg-white shadow-lg shadow-white/50 animate-pulse'
+                                                                    : 'bg-orange-500/50'
+                                                                    }`}
                                                             />
                                                         ))}
                                                     </div>
 
-                                                    {/* Press plates */}
+                                                    {/* Laser beam */}
                                                     {processRunning && (
-                                                        <>
-                                                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 w-40 h-4 bg-slate-500 rounded animate-bounce" style={{ animationDuration: '0.5s' }} />
-                                                            <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-40 h-4 bg-slate-500 rounded animate-bounce" style={{ animationDuration: '0.5s', animationDelay: '0.25s' }} />
-                                                        </>
+                                                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0.5 h-16 bg-gradient-to-b from-orange-400 via-orange-300 to-white animate-pulse" />
                                                     )}
                                                 </div>
                                             </div>
 
                                             <div className="absolute bottom-2 left-0 right-0 text-center">
                                                 <span className="text-[10px] text-slate-500">
-                                                    {processRunning ? 'Hot press cycle...' : `${laminationParams.layers}-layer stack`}
+                                                    {processRunning ? `${weldingParams.weldType} welding...` : `${weldingParams.material} ${weldingParams.thicknessMm}mm tab ready`}
                                                 </span>
                                             </div>
                                         </div>
                                     </div>
 
                                     <button
-                                        onClick={handleLaminationPredict}
+                                        onClick={handleWeldingOptimization}
                                         disabled={processRunning}
                                         className="w-full py-3 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 rounded-xl text-white font-semibold shadow-lg shadow-orange-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
                                     >
                                         {processRunning ? (
                                             <>
-                                                <RefreshCw className="w-5 h-5 animate-spin" /> Calculating...
+                                                <RefreshCw className="w-5 h-5 animate-spin" /> Optimizing...
                                             </>
                                         ) : (
                                             <>
-                                                <Play className="w-5 h-5" /> Predict Scaling Factors
+                                                <Play className="w-5 h-5" /> Generate AI Weld Parameters
                                             </>
                                         )}
                                     </button>
 
                                     {/* Results */}
-                                    {laminationResult && (
+                                    {weldingResult && (
                                         <div className="p-4 bg-gradient-to-r from-orange-900/30 to-slate-900/50 rounded-xl border border-orange-500/30 animate-in fade-in slide-in-from-bottom-3 duration-300">
                                             <div className="flex items-center gap-2 mb-3">
                                                 <CheckCircle className="w-5 h-5 text-orange-400" />
-                                                <span className="text-sm font-semibold text-orange-300">Compensation Factors Calculated</span>
+                                                <span className="text-sm font-semibold text-orange-300">AI Weld Parameters Generated</span>
                                             </div>
-                                            <div className="grid grid-cols-3 gap-4">
+                                            <div className="grid grid-cols-3 gap-4 mb-3">
                                                 <div className="p-3 bg-black/40 rounded-lg text-center">
-                                                    <div className="text-2xl font-bold text-orange-400 font-mono">{laminationResult.scaling_factors?.x_comp}</div>
-                                                    <div className="text-[10px] text-slate-400">mils/in X-Comp</div>
+                                                    <div className="text-2xl font-bold text-orange-400 font-mono">{weldingResult.recommended_parameters?.laser?.power_w || 2500}</div>
+                                                    <div className="text-[10px] text-slate-400">Watts Power</div>
                                                 </div>
                                                 <div className="p-3 bg-black/40 rounded-lg text-center">
-                                                    <div className="text-2xl font-bold text-orange-400 font-mono">{laminationResult.scaling_factors?.y_comp}</div>
-                                                    <div className="text-[10px] text-slate-400">mils/in Y-Comp</div>
+                                                    <div className="text-2xl font-bold text-orange-400 font-mono">{weldingResult.recommended_parameters?.laser?.pulse_duration_ms || 3}</div>
+                                                    <div className="text-[10px] text-slate-400">ms Pulse</div>
                                                 </div>
                                                 <div className="p-3 bg-emerald-900/30 rounded-lg text-center border border-emerald-500/30">
-                                                    <div className="text-sm font-bold text-emerald-400">{laminationResult.drill_program_offset}</div>
-                                                    <div className="text-[10px] text-slate-400">Drill Program</div>
+                                                    <div className="text-2xl font-bold text-emerald-400">{weldingResult.expected_weld_strength_n || 55}N</div>
+                                                    <div className="text-[10px] text-slate-400">Weld Strength</div>
                                                 </div>
                                             </div>
+                                            {/* Additional Parameters */}
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                                <div className="p-2 bg-black/30 rounded-lg flex justify-between">
+                                                    <span className="text-slate-400">Spot Size:</span>
+                                                    <span className="text-orange-300">{weldingResult.recommended_parameters?.laser?.spot_diameter_mm || 0.6}mm</span>
+                                                </div>
+                                                <div className="p-2 bg-black/30 rounded-lg flex justify-between">
+                                                    <span className="text-slate-400">Shield Gas:</span>
+                                                    <span className="text-orange-300">{weldingResult.recommended_parameters?.laser?.shield_gas || 'Argon'}</span>
+                                                </div>
+                                            </div>
+                                            {weldingResult.process_window && (
+                                                <div className="mt-3 p-2 bg-black/20 rounded-lg text-[10px] text-slate-400">
+                                                    {weldingResult.process_window}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
                             )}
 
-                            {/* PLATING CONTROL */}
+                            {/* TAB WELDING CONTROL */}
                             {activeProcess === 'plating' && (
                                 <div className="space-y-6 animate-in fade-in duration-300">
                                     <div className="flex items-center justify-between">
                                         <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                                            <Box className="text-emerald-400" /> Plating Uniformity Optimization
+                                            <Box className="text-emerald-400" /> Tab Welding Optimization
                                         </h3>
-                                        <span className="text-xs px-2 py-1 bg-emerald-500/20 text-emerald-300 rounded-full">Current Density FEM</span>
+                                        <span className="text-xs px-2 py-1 bg-emerald-500/20 text-emerald-300 rounded-full">Laser Welding</span>
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-6">
                                         <div className="space-y-4">
                                             <div className="p-4 bg-black/30 rounded-xl border border-white/5">
                                                 <div className="flex justify-between items-center mb-3">
-                                                    <label className="text-sm text-slate-300">Panel Width</label>
-                                                    <span className="text-lg font-bold text-emerald-400 font-mono">{platingParams.width}mm</span>
+                                                    <label className="text-sm text-slate-300">Laser Power</label>
+                                                    <span className="text-lg font-bold text-emerald-400 font-mono">{(platingParams.width / 100).toFixed(1)}kW</span>
                                                 </div>
                                                 <input
                                                     type="range"
@@ -1567,8 +1251,8 @@ const PCBManufacturing = () => {
 
                                             <div className="p-4 bg-black/30 rounded-xl border border-white/5">
                                                 <div className="flex justify-between items-center mb-3">
-                                                    <label className="text-sm text-slate-300">Panel Height</label>
-                                                    <span className="text-lg font-bold text-emerald-400 font-mono">{platingParams.height}mm</span>
+                                                    <label className="text-sm text-slate-300">Pulse Duration</label>
+                                                    <span className="text-lg font-bold text-emerald-400 font-mono">{(platingParams.height / 100).toFixed(1)}ms</span>
                                                 </div>
                                                 <input
                                                     type="range"
@@ -1583,64 +1267,54 @@ const PCBManufacturing = () => {
 
                                             <div className="p-3 bg-slate-900/50 rounded-lg border border-white/5">
                                                 <div className="flex justify-between text-sm">
-                                                    <span className="text-slate-400">Panel Area:</span>
-                                                    <span className="text-emerald-400 font-mono">{(platingParams.width * platingParams.height / 100).toFixed(0)} cm²</span>
+                                                    <span className="text-slate-400">Energy Input:</span>
+                                                    <span className="text-emerald-400 font-mono">{((platingParams.width / 100) * (platingParams.height / 100) * 0.8).toFixed(1)} J</span>
                                                 </div>
                                                 <div className="flex justify-between text-sm mt-1">
-                                                    <span className="text-slate-400">Classification:</span>
-                                                    <span className={`font-medium ${platingParams.width * platingParams.height > 50000 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                                                        {platingParams.width * platingParams.height > 50000 ? 'Large Panel' : 'Standard Panel'}
+                                                    <span className="text-slate-400">Weld Type:</span>
+                                                    <span className={`font-medium ${(platingParams.width / 100) > 4 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                                        {(platingParams.width / 100) > 4 ? 'High-Power' : 'Standard'}
                                                     </span>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        {/* Current Density Heatmap Visualization */}
+                                        {/* Weld Zone Visualization */}
                                         <div className="relative bg-black/40 rounded-xl border border-emerald-500/20 p-4 overflow-hidden">
-                                            <div className="absolute top-2 right-2 text-[10px] text-emerald-400">CURRENT DENSITY MAP</div>
+                                            <div className="absolute top-2 right-2 text-[10px] text-emerald-400">WELD ZONE VIEW</div>
 
                                             <div className="h-full flex items-center justify-center">
-                                                <div
-                                                    className="relative rounded-lg overflow-hidden border-2 border-emerald-500/30"
-                                                    style={{
-                                                        width: `${Math.min(platingParams.width / 3, 180)}px`,
-                                                        height: `${Math.min(platingParams.height / 3, 140)}px`
-                                                    }}
-                                                >
-                                                    {/* Gradient showing edge concentration */}
-                                                    <div className="absolute inset-0 bg-gradient-to-r from-red-500/60 via-emerald-500/30 to-red-500/60" />
-                                                    <div className="absolute inset-0 bg-gradient-to-b from-red-500/60 via-transparent to-red-500/60" />
+                                                <div className="relative w-40 h-28 bg-slate-800 rounded-lg border-2 border-slate-600 overflow-hidden">
+                                                    {/* Cell terminal */}
+                                                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-20 h-8 bg-slate-500 rounded-t" />
 
-                                                    {/* Center label */}
-                                                    <div className="absolute inset-0 flex items-center justify-center">
-                                                        <div className="text-[10px] text-white bg-black/50 px-2 py-1 rounded">
-                                                            {processRunning ? 'Optimizing...' : 'Dog-bone Effect'}
-                                                        </div>
+                                                    {/* Tab overlay */}
+                                                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-16 h-3 bg-yellow-600/80 rounded-sm" />
+
+                                                    {/* Weld spots */}
+                                                    <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-2">
+                                                        {[...Array(3)].map((_, i) => (
+                                                            <div
+                                                                key={i}
+                                                                className={`w-2 h-2 rounded-full transition-all duration-300 ${processRunning
+                                                                    ? 'bg-white shadow-lg shadow-white/50 animate-pulse'
+                                                                    : 'bg-emerald-500/50'
+                                                                    }`}
+                                                            />
+                                                        ))}
                                                     </div>
 
-                                                    {/* Animated current flow */}
+                                                    {/* Laser beam */}
                                                     {processRunning && (
-                                                        <div className="absolute inset-0">
-                                                            {[...Array(8)].map((_, i) => (
-                                                                <div
-                                                                    key={i}
-                                                                    className="absolute w-1 h-1 bg-yellow-400 rounded-full animate-ping"
-                                                                    style={{
-                                                                        left: `${10 + (i % 4) * 25}%`,
-                                                                        top: `${10 + Math.floor(i / 4) * 80}%`,
-                                                                        animationDelay: `${i * 0.2}s`
-                                                                    }}
-                                                                />
-                                                            ))}
-                                                        </div>
+                                                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0.5 h-16 bg-gradient-to-b from-emerald-400 via-emerald-300 to-white animate-pulse" />
                                                     )}
                                                 </div>
                                             </div>
 
                                             <div className="absolute bottom-2 left-2 right-2 flex justify-between text-[8px]">
-                                                <span className="text-red-400">High Density</span>
-                                                <span className="text-emerald-400">Uniform</span>
-                                                <span className="text-red-400">High Density</span>
+                                                <span className="text-emerald-400">Tab</span>
+                                                <span className="text-white">Weld Nuggets</span>
+                                                <span className="text-slate-400">Terminal</span>
                                             </div>
                                         </div>
                                     </div>
@@ -1652,11 +1326,11 @@ const PCBManufacturing = () => {
                                     >
                                         {processRunning ? (
                                             <>
-                                                <RefreshCw className="w-5 h-5 animate-spin" /> Optimizing...
+                                                <RefreshCw className="w-5 h-5 animate-spin" /> Welding...
                                             </>
                                         ) : (
                                             <>
-                                                <Play className="w-5 h-5" /> Optimize Plating Setup
+                                                <Play className="w-5 h-5" /> Optimize Weld Parameters
                                             </>
                                         )}
                                     </button>
@@ -1666,12 +1340,12 @@ const PCBManufacturing = () => {
                                         <div className="p-4 bg-gradient-to-r from-emerald-900/30 to-slate-900/50 rounded-xl border border-emerald-500/30 animate-in fade-in slide-in-from-bottom-3 duration-300">
                                             <div className="flex items-center gap-2 mb-3">
                                                 <CheckCircle className="w-5 h-5 text-emerald-400" />
-                                                <span className="text-sm font-semibold text-emerald-300">Optimization Complete</span>
+                                                <span className="text-sm font-semibold text-emerald-300">Weld Parameters Optimized</span>
                                             </div>
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div className="p-3 bg-black/40 rounded-lg">
-                                                    <div className="text-[10px] text-slate-500 mb-1">Suggested Setup</div>
-                                                    <div className="text-sm text-white">{platingResult.suggested_setup}</div>
+                                                    <div className="text-[10px] text-slate-500 mb-1">Weld Schedule</div>
+                                                    <div className="text-sm text-white">{platingResult.suggested_setup || '3-pulse, 2ms gap'}</div>
                                                 </div>
                                                 <div className="p-3 bg-black/40 rounded-lg text-center">
                                                     <div className="relative w-16 h-16 mx-auto">
@@ -1680,16 +1354,16 @@ const PCBManufacturing = () => {
                                                             <circle
                                                                 cx="32" cy="32" r="28"
                                                                 stroke="currentColor" strokeWidth="6" fill="none"
-                                                                strokeDasharray={`${(platingResult.predicted_uniformity_score || 0) * 1.76} 176`}
+                                                                strokeDasharray={`${(platingResult.predicted_uniformity_score || 92) * 1.76} 176`}
                                                                 strokeLinecap="round"
                                                                 className="text-emerald-500"
                                                             />
                                                         </svg>
                                                         <div className="absolute inset-0 flex items-center justify-center">
-                                                            <span className="text-lg font-bold text-emerald-400">{platingResult.predicted_uniformity_score}%</span>
+                                                            <span className="text-lg font-bold text-emerald-400">{platingResult.predicted_uniformity_score || 92}%</span>
                                                         </div>
                                                     </div>
-                                                    <div className="text-[10px] text-slate-400 mt-1">Uniformity Score</div>
+                                                    <div className="text-[10px] text-slate-400 mt-1">Weld Strength</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -1763,9 +1437,8 @@ const PCBManufacturing = () => {
 
                                     {processLoop && (
                                         <div className="mt-3 p-3 bg-black/40 rounded-lg animate-in fade-in duration-300">
-                                            <div className={`text-sm font-bold ${
-                                                processLoop.status?.includes('Under') ? 'text-amber-400' : 'text-emerald-400'
-                                            }`}>
+                                            <div className={`text-sm font-bold ${processLoop.status?.includes('Under') ? 'text-amber-400' : 'text-emerald-400'
+                                                }`}>
                                                 {processLoop.status}
                                             </div>
                                             {processLoop.adjustment_command && (
@@ -1789,18 +1462,16 @@ const PCBManufacturing = () => {
                                     <div className="space-y-2">
                                         {['Input Parameters', 'Physics Simulation', 'AI Optimization', 'Output Actions'].map((step, i) => (
                                             <div key={i} className="flex items-center gap-2">
-                                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                                                    processAnimationStep > i
-                                                        ? 'bg-emerald-500 text-white'
-                                                        : processAnimationStep === i + 1
+                                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${processAnimationStep > i
+                                                    ? 'bg-emerald-500 text-white'
+                                                    : processAnimationStep === i + 1
                                                         ? 'bg-yellow-500 text-white animate-pulse'
                                                         : 'bg-slate-700 text-slate-400'
-                                                }`}>
+                                                    }`}>
                                                     {processAnimationStep > i ? '✓' : i + 1}
                                                 </div>
-                                                <span className={`text-xs ${
-                                                    processAnimationStep >= i + 1 ? 'text-white' : 'text-slate-500'
-                                                }`}>{step}</span>
+                                                <span className={`text-xs ${processAnimationStep >= i + 1 ? 'text-white' : 'text-slate-500'
+                                                    }`}>{step}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -1811,8 +1482,8 @@ const PCBManufacturing = () => {
                 </div>
             )}
 
-            {/* --- PHASE 3 CONTENT: INTELLIGENT QUALITY CONTROL --- */}
-            {activePhase === 3 && (
+            {/* --- TAB 2: ASSEMBLY VISION QC --- */}
+            {activeTab === 2 && (
                 <div className="space-y-6 animate-in slide-in-from-right fade-in duration-500">
                     {/* Header Stats Bar */}
                     <div className="grid grid-cols-4 gap-4">
@@ -1955,7 +1626,7 @@ const PCBManufacturing = () => {
                                                 <Camera className="w-8 h-8 text-purple-400 group-hover:scale-110 transition-transform" />
                                             </div>
                                             <p className="text-sm text-slate-300">
-                                                <span className="font-semibold text-purple-300">Upload PCB Image</span> for inspection
+                                                <span className="font-semibold text-purple-300">Upload BMS/Assembly Image</span> for inspection
                                             </p>
                                             <p className="text-[10px] text-slate-500 mt-1">JPG, PNG up to 10MB</p>
                                         </>
@@ -1975,11 +1646,10 @@ const PCBManufacturing = () => {
                             {visionResult && !visionResult.error && (
                                 <div className="mt-5 space-y-4 animate-in fade-in slide-in-from-bottom-3 duration-500">
                                     {/* Verdict Banner */}
-                                    <div className={`relative overflow-hidden rounded-xl p-4 ${
-                                        visionResult.verdict === 'FAIL'
-                                            ? 'bg-gradient-to-r from-red-900/60 to-red-800/40 border border-red-500/40'
-                                            : 'bg-gradient-to-r from-emerald-900/60 to-emerald-800/40 border border-emerald-500/40'
-                                    }`}>
+                                    <div className={`relative overflow-hidden rounded-xl p-4 ${visionResult.verdict === 'FAIL'
+                                        ? 'bg-gradient-to-r from-red-900/60 to-red-800/40 border border-red-500/40'
+                                        : 'bg-gradient-to-r from-emerald-900/60 to-emerald-800/40 border border-emerald-500/40'
+                                        }`}>
                                         {/* Animated background pulse for FAIL */}
                                         {visionResult.verdict === 'FAIL' && (
                                             <div className="absolute inset-0 bg-red-500/10 animate-pulse" />
@@ -2040,21 +1710,19 @@ const PCBManufacturing = () => {
                                                     <div key={i} className="p-3 hover:bg-white/5 transition-colors">
                                                         <div className="flex items-start justify-between gap-3">
                                                             <div className="flex items-start gap-3 min-w-0 flex-1">
-                                                                <div className={`mt-0.5 p-1.5 rounded-md ${
-                                                                    defect.severity === 'FATAL'
-                                                                        ? 'bg-red-500/20 text-red-400'
-                                                                        : 'bg-amber-500/20 text-amber-400'
-                                                                }`}>
+                                                                <div className={`mt-0.5 p-1.5 rounded-md ${defect.severity === 'FATAL'
+                                                                    ? 'bg-red-500/20 text-red-400'
+                                                                    : 'bg-amber-500/20 text-amber-400'
+                                                                    }`}>
                                                                     {defect.severity === 'FATAL' ? <XCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
                                                                 </div>
                                                                 <div className="min-w-0 flex-1">
                                                                     <div className="flex items-center gap-2 flex-wrap">
                                                                         <span className="text-sm font-medium text-white">{defect.type}</span>
-                                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
-                                                                            defect.severity === 'FATAL'
-                                                                                ? 'bg-red-500/30 text-red-300'
-                                                                                : 'bg-amber-500/30 text-amber-300'
-                                                                        }`}>
+                                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${defect.severity === 'FATAL'
+                                                                            ? 'bg-red-500/30 text-red-300'
+                                                                            : 'bg-amber-500/30 text-amber-300'
+                                                                            }`}>
                                                                             {defect.severity}
                                                                         </span>
                                                                     </div>
@@ -2199,8 +1867,8 @@ const PCBManufacturing = () => {
                                                                     (xrayResult.bga_analysis.max_void_percentage || 0) <= 25
                                                                         ? 'text-emerald-500'
                                                                         : (xrayResult.bga_analysis.max_void_percentage || 0) <= 40
-                                                                        ? 'text-amber-500'
-                                                                        : 'text-red-500'
+                                                                            ? 'text-amber-500'
+                                                                            : 'text-red-500'
                                                                 }
                                                             />
                                                         </svg>
@@ -2213,19 +1881,17 @@ const PCBManufacturing = () => {
                                                 </div>
                                                 {/* Status and Details */}
                                                 <div className="flex flex-col justify-center space-y-3">
-                                                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
-                                                        xrayResult.bga_analysis.status === 'PASS'
-                                                            ? 'bg-emerald-900/30 border border-emerald-500/30'
-                                                            : 'bg-red-900/30 border border-red-500/30'
-                                                    }`}>
+                                                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${xrayResult.bga_analysis.status === 'PASS'
+                                                        ? 'bg-emerald-900/30 border border-emerald-500/30'
+                                                        : 'bg-red-900/30 border border-red-500/30'
+                                                        }`}>
                                                         {xrayResult.bga_analysis.status === 'PASS' ? (
                                                             <CheckCircle className="w-4 h-4 text-emerald-400" />
                                                         ) : (
                                                             <XCircle className="w-4 h-4 text-red-400" />
                                                         )}
-                                                        <span className={`text-sm font-bold ${
-                                                            xrayResult.bga_analysis.status === 'PASS' ? 'text-emerald-300' : 'text-red-300'
-                                                        }`}>
+                                                        <span className={`text-sm font-bold ${xrayResult.bga_analysis.status === 'PASS' ? 'text-emerald-300' : 'text-red-300'
+                                                            }`}>
                                                             {xrayResult.bga_analysis.status}
                                                         </span>
                                                     </div>
@@ -2251,26 +1917,22 @@ const PCBManufacturing = () => {
                                                     </div>
                                                     <div className="text-[10px] text-slate-400 mt-1">Misalignment</div>
                                                 </div>
-                                                <div className={`p-3 rounded-lg text-center ${
-                                                    xrayResult.layer_alignment.status === 'GOOD'
-                                                        ? 'bg-emerald-900/30 border border-emerald-500/20'
-                                                        : 'bg-amber-900/30 border border-amber-500/20'
-                                                }`}>
-                                                    <div className={`text-lg font-bold ${
-                                                        xrayResult.layer_alignment.status === 'GOOD' ? 'text-emerald-300' : 'text-amber-300'
+                                                <div className={`p-3 rounded-lg text-center ${xrayResult.layer_alignment.status === 'GOOD'
+                                                    ? 'bg-emerald-900/30 border border-emerald-500/20'
+                                                    : 'bg-amber-900/30 border border-amber-500/20'
                                                     }`}>
+                                                    <div className={`text-lg font-bold ${xrayResult.layer_alignment.status === 'GOOD' ? 'text-emerald-300' : 'text-amber-300'
+                                                        }`}>
                                                         {xrayResult.layer_alignment.status}
                                                     </div>
                                                     <div className="text-[10px] text-slate-400 mt-1">Alignment</div>
                                                 </div>
-                                                <div className={`p-3 rounded-lg text-center ${
-                                                    !xrayResult.layer_alignment.barrel_distortion_detected
-                                                        ? 'bg-emerald-900/30 border border-emerald-500/20'
-                                                        : 'bg-red-900/30 border border-red-500/20'
-                                                }`}>
-                                                    <div className={`text-lg font-bold ${
-                                                        !xrayResult.layer_alignment.barrel_distortion_detected ? 'text-emerald-300' : 'text-red-300'
+                                                <div className={`p-3 rounded-lg text-center ${!xrayResult.layer_alignment.barrel_distortion_detected
+                                                    ? 'bg-emerald-900/30 border border-emerald-500/20'
+                                                    : 'bg-red-900/30 border border-red-500/20'
                                                     }`}>
+                                                    <div className={`text-lg font-bold ${!xrayResult.layer_alignment.barrel_distortion_detected ? 'text-emerald-300' : 'text-red-300'
+                                                        }`}>
                                                         {xrayResult.layer_alignment.barrel_distortion_detected ? 'YES' : 'NO'}
                                                     </div>
                                                     <div className="text-[10px] text-slate-400 mt-1">Barrel Distortion</div>
@@ -2309,9 +1971,9 @@ const PCBManufacturing = () => {
                 </div>
             )}
 
-            {/* --- PHASE 4 CONTENT --- */}
+            {/* --- TAB 3: LINE MONITORING & INVENTORY --- */}
             {
-                activePhase === 4 && (
+                activeTab === 3 && (
                     <div className="space-y-6 animate-in slide-in-from-right fade-in duration-500">
                         {/* Maintenance Header */}
                         <div className="bg-gradient-to-r from-slate-900 via-orange-900/20 to-slate-900 p-4 rounded-xl border border-orange-500/20">
@@ -2350,19 +2012,18 @@ const PCBManufacturing = () => {
                             {/* Navigation Tabs */}
                             <div className="flex gap-2 mt-4">
                                 {[
-                                    { id: 'fleet', icon: Server, label: 'Machine Fleet' },
-                                    { id: 'drills', icon: Disc, label: 'Drill Inventory' },
-                                    { id: 'fft', icon: Waves, label: 'FFT Analysis' },
+                                    { id: 'fleet', icon: Server, label: 'Assembly Stations' },
+                                    { id: 'drills', icon: Disc, label: 'Electrode Health' },
+                                    { id: 'fft', icon: Waves, label: 'Vibration Analysis' },
                                     { id: 'history', icon: History, label: 'Anomaly Log' }
                                 ].map(tab => (
                                     <button
                                         key={tab.id}
                                         onClick={() => setMaintView(tab.id)}
-                                        className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                                            maintView === tab.id
-                                                ? 'bg-orange-500/30 text-orange-300 border border-orange-500/50'
-                                                : 'bg-black/20 text-slate-400 hover:text-white border border-transparent'
-                                        }`}
+                                        className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${maintView === tab.id
+                                            ? 'bg-orange-500/30 text-orange-300 border border-orange-500/50'
+                                            : 'bg-black/20 text-slate-400 hover:text-white border border-transparent'
+                                            }`}
                                     >
                                         <tab.icon className="w-4 h-4" />
                                         <span className="text-sm font-medium">{tab.label}</span>
@@ -2379,7 +2040,7 @@ const PCBManufacturing = () => {
                                 {maintView === 'fleet' && (
                                     <div className="bg-slate-800/50 p-6 rounded-xl border border-white/5">
                                         <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                                            <Server className="text-cyan-400" /> CNC Machine Fleet Status
+                                            <Server className="text-cyan-400" /> Pack Assembly Line Status
                                         </h3>
                                         {fleetData ? (
                                             <div className="grid grid-cols-2 gap-4">
@@ -2387,32 +2048,30 @@ const PCBManufacturing = () => {
                                                     <div
                                                         key={machine.id}
                                                         onClick={() => handleThermalAnalysis(machine)}
-                                                        className={`p-4 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] ${
-                                                            machine.status === 'WARNING'
-                                                                ? 'bg-amber-900/20 border-amber-500/30 hover:border-amber-500/50'
-                                                                : machine.status === 'IDLE'
+                                                        className={`p-4 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] ${machine.status === 'WARNING'
+                                                            ? 'bg-amber-900/20 border-amber-500/30 hover:border-amber-500/50'
+                                                            : machine.status === 'IDLE'
                                                                 ? 'bg-slate-900/50 border-slate-600/30 hover:border-slate-500/50'
                                                                 : 'bg-emerald-900/20 border-emerald-500/30 hover:border-emerald-500/50'
-                                                        }`}
+                                                            }`}
                                                     >
                                                         <div className="flex items-start justify-between mb-3">
                                                             <div>
                                                                 <div className="text-sm font-bold text-white">{machine.id}</div>
                                                                 <div className="text-xs text-slate-400">{machine.type}</div>
                                                             </div>
-                                                            <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                                                machine.status === 'WARNING' ? 'bg-amber-500/30 text-amber-300' :
+                                                            <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${machine.status === 'WARNING' ? 'bg-amber-500/30 text-amber-300' :
                                                                 machine.status === 'IDLE' ? 'bg-slate-500/30 text-slate-300' :
-                                                                'bg-emerald-500/30 text-emerald-300'
-                                                            }`}>
+                                                                    'bg-emerald-500/30 text-emerald-300'
+                                                                }`}>
                                                                 {machine.status}
                                                             </div>
                                                         </div>
 
                                                         <div className="grid grid-cols-3 gap-2 mb-3">
                                                             <div className="text-center p-2 bg-black/30 rounded-lg">
-                                                                <div className="text-lg font-bold text-cyan-400 font-mono">{machine.spindle_rpm > 0 ? (machine.spindle_rpm / 1000).toFixed(0) + 'K' : '---'}</div>
-                                                                <div className="text-[9px] text-slate-500">RPM</div>
+                                                                <div className="text-lg font-bold text-cyan-400 font-mono">{machine.throughput_pph}</div>
+                                                                <div className="text-[9px] text-slate-500">Packs/Hr</div>
                                                             </div>
                                                             <div className="text-center p-2 bg-black/30 rounded-lg">
                                                                 <div className={`text-lg font-bold font-mono ${machine.spindle_temp_c > 65 ? 'text-red-400' : machine.spindle_temp_c > 55 ? 'text-amber-400' : 'text-emerald-400'}`}>
@@ -2421,10 +2080,10 @@ const PCBManufacturing = () => {
                                                                 <div className="text-[9px] text-slate-500">TEMP</div>
                                                             </div>
                                                             <div className="text-center p-2 bg-black/30 rounded-lg">
-                                                                <div className={`text-lg font-bold font-mono ${machine.vibration_rms > 2.0 ? 'text-red-400' : machine.vibration_rms > 1.5 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                                                                    {machine.vibration_rms}
+                                                                <div className={`text-lg font-bold font-mono ${!machine.yield_rate || machine.yield_rate > 0.98 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                                                    {machine.yield_rate ? (machine.yield_rate * 100).toFixed(0) + '%' : 'N/A'}
                                                                 </div>
-                                                                <div className="text-[9px] text-slate-500">RMS</div>
+                                                                <div className="text-[9px] text-slate-500">Yield</div>
                                                             </div>
                                                         </div>
 
@@ -2449,7 +2108,7 @@ const PCBManufacturing = () => {
                                     <div className="bg-slate-800/50 p-6 rounded-xl border border-white/5">
                                         <div className="flex items-center justify-between mb-4">
                                             <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                                                <Disc className="text-purple-400" /> Drill Bit Inventory
+                                                <Disc className="text-purple-400" /> Weld Electrode Health
                                             </h3>
                                             {drillInventory && (
                                                 <div className="flex gap-3 text-xs">
@@ -2461,55 +2120,51 @@ const PCBManufacturing = () => {
                                         </div>
                                         {drillInventory ? (
                                             <div className="grid grid-cols-4 gap-3">
-                                                {drillInventory.drills.map(drill => {
-                                                    const usage = (drill.hits / drill.max_hits) * 100;
+                                                {drillInventory.drills.map((cell, i) => {
+                                                    // Backend returns 'drills' key but contains cell data: {sku, qty, grade, status, capacity_ah}
+                                                    const stockLevel = (cell.qty / 15000) * 100;
                                                     return (
                                                         <div
-                                                            key={drill.id}
-                                                            className={`p-3 rounded-xl border transition-all hover:scale-105 ${
-                                                                drill.status === 'CRITICAL' ? 'bg-red-900/30 border-red-500/40' :
-                                                                drill.status === 'WARNING' ? 'bg-amber-900/30 border-amber-500/40' :
-                                                                'bg-slate-900/50 border-white/5'
-                                                            }`}
+                                                            key={i}
+                                                            className={`p-3 rounded-xl border transition-all hover:scale-105 ${cell.status === 'CRITICAL' ? 'bg-red-900/30 border-red-500/40' :
+                                                                cell.status === 'WARNING' ? 'bg-amber-900/30 border-amber-500/40' :
+                                                                    'bg-slate-900/50 border-white/5'
+                                                                }`}
                                                         >
                                                             <div className="flex items-center justify-between mb-2">
-                                                                <div className="text-xs font-bold text-white">{drill.diameter_mm}mm</div>
-                                                                <div className={`w-2 h-2 rounded-full ${
-                                                                    drill.status === 'CRITICAL' ? 'bg-red-400 animate-pulse' :
-                                                                    drill.status === 'WARNING' ? 'bg-amber-400' :
-                                                                    'bg-emerald-400'
-                                                                }`} />
+                                                                <div className="text-[10px] font-bold text-white truncate w-24" title={cell.sku}>{cell.sku}</div>
+                                                                <div className={`w-2 h-2 rounded-full ${cell.status === 'CRITICAL' ? 'bg-red-400 animate-pulse' :
+                                                                    cell.status === 'WARNING' ? 'bg-amber-400' :
+                                                                        'bg-emerald-400'
+                                                                    }`} />
                                                             </div>
 
-                                                            {/* Usage Bar */}
+                                                            {/* Stock Level Bar */}
                                                             <div className="h-2 bg-slate-700 rounded-full overflow-hidden mb-2">
                                                                 <div
-                                                                    className={`h-full transition-all ${
-                                                                        usage > 90 ? 'bg-red-500' :
-                                                                        usage > 70 ? 'bg-amber-500' :
-                                                                        'bg-emerald-500'
-                                                                    }`}
-                                                                    style={{ width: `${usage}%` }}
+                                                                    className={`h-full transition-all ${cell.status === 'CRITICAL' ? 'bg-red-500' :
+                                                                        cell.status === 'WARNING' ? 'bg-amber-500' :
+                                                                            'bg-emerald-500'
+                                                                        }`}
+                                                                    style={{ width: `${Math.min(100, stockLevel)}%` }}
                                                                 />
                                                             </div>
 
                                                             <div className="flex justify-between text-[9px] text-slate-400">
-                                                                <span>{drill.hits.toLocaleString()}</span>
-                                                                <span>{drill.max_hits.toLocaleString()}</span>
+                                                                <span>Qty: {cell.qty && cell.qty.toLocaleString()}</span>
+                                                                <span className={
+                                                                    cell.grade === 'A' ? 'text-emerald-400' : 'text-amber-400'
+                                                                }>{cell.grade} Grade</span>
                                                             </div>
 
                                                             <div className="mt-2 pt-2 border-t border-white/5 text-[9px]">
                                                                 <div className="flex justify-between">
-                                                                    <span className="text-slate-500">Smear:</span>
-                                                                    <span className={
-                                                                        drill.resin_smear === 'high' ? 'text-red-400' :
-                                                                        drill.resin_smear === 'medium' ? 'text-amber-400' :
-                                                                        'text-emerald-400'
-                                                                    }>{drill.resin_smear}</span>
+                                                                    <span className="text-slate-500">Cap:</span>
+                                                                    <span className="text-slate-300">{cell.capacity_ah} Ah</span>
                                                                 </div>
                                                                 <div className="flex justify-between">
-                                                                    <span className="text-slate-500">Location:</span>
-                                                                    <span className="text-slate-300">{drill.location}</span>
+                                                                    <span className="text-slate-500">Loc:</span>
+                                                                    <span className="text-slate-300">{cell.location && cell.location.split('-').pop()}</span>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -2542,16 +2197,14 @@ const PCBManufacturing = () => {
                                         <div className="bg-black/40 rounded-xl p-4 border border-cyan-500/20">
                                             <div className="flex items-end justify-between gap-1 h-48">
                                                 {fftData.map((h, i) => {
-                                                    const freq = (i + 1) * 100;
                                                     const isAnomaly = h > 75;
                                                     return (
                                                         <div key={i} className="flex-1 flex flex-col items-center gap-1">
                                                             <div
-                                                                className={`w-full rounded-t transition-all duration-100 ${
-                                                                    isAnomaly ? 'bg-red-500 shadow-lg shadow-red-500/30' :
+                                                                className={`w-full rounded-t transition-all duration-100 ${isAnomaly ? 'bg-red-500 shadow-lg shadow-red-500/30' :
                                                                     h > 50 ? 'bg-amber-500' :
-                                                                    'bg-cyan-500/70'
-                                                                }`}
+                                                                        'bg-cyan-500/70'
+                                                                    }`}
                                                                 style={{ height: `${h}%` }}
                                                             />
                                                         </div>
@@ -2570,15 +2223,15 @@ const PCBManufacturing = () => {
                                         <div className="grid grid-cols-3 gap-4 mt-4">
                                             <div className="p-3 bg-black/30 rounded-lg border border-white/5">
                                                 <div className="text-[10px] text-slate-400 mb-1">Low Freq (10-100Hz)</div>
-                                                <div className="text-sm text-cyan-300">Mechanical Imbalance</div>
+                                                <div className="text-sm text-cyan-300">Conveyor Alignment</div>
                                             </div>
                                             <div className="p-3 bg-black/30 rounded-lg border border-white/5">
                                                 <div className="text-[10px] text-slate-400 mb-1">Mid Freq (100-500Hz)</div>
-                                                <div className="text-sm text-amber-300">Belt/Gear Issues</div>
+                                                <div className="text-sm text-amber-300">Laser Focus Drift</div>
                                             </div>
                                             <div className="p-3 bg-black/30 rounded-lg border border-white/5">
                                                 <div className="text-[10px] text-slate-400 mb-1">High Freq (&gt;1kHz)</div>
-                                                <div className="text-sm text-red-300">Bearing Wear</div>
+                                                <div className="text-sm text-red-300">Ultrasonic Horn Wear</div>
                                             </div>
                                         </div>
 
@@ -2626,22 +2279,20 @@ const PCBManufacturing = () => {
                                                 {anomalyHistory.anomalies.map((anomaly, i) => (
                                                     <div
                                                         key={i}
-                                                        className={`p-4 rounded-xl border ${
-                                                            !anomaly.resolved
-                                                                ? 'bg-red-900/20 border-red-500/30'
-                                                                : 'bg-slate-900/50 border-white/5'
-                                                        }`}
+                                                        className={`p-4 rounded-xl border ${!anomaly.resolved
+                                                            ? 'bg-red-900/20 border-red-500/30'
+                                                            : 'bg-slate-900/50 border-white/5'
+                                                            }`}
                                                     >
                                                         <div className="flex items-start justify-between">
                                                             <div className="flex items-start gap-3">
-                                                                <div className={`p-2 rounded-lg ${
-                                                                    anomaly.severity === 'CRITICAL' ? 'bg-red-500/20' :
+                                                                <div className={`p-2 rounded-lg ${anomaly.severity === 'CRITICAL' ? 'bg-red-500/20' :
                                                                     anomaly.severity === 'WARNING' ? 'bg-amber-500/20' :
-                                                                    'bg-blue-500/20'
-                                                                }`}>
+                                                                        'bg-blue-500/20'
+                                                                    }`}>
                                                                     {anomaly.severity === 'CRITICAL' ? <AlertOctagon className="w-5 h-5 text-red-400" /> :
-                                                                     anomaly.severity === 'WARNING' ? <AlertTriangle className="w-5 h-5 text-amber-400" /> :
-                                                                     <Bell className="w-5 h-5 text-blue-400" />}
+                                                                        anomaly.severity === 'WARNING' ? <AlertTriangle className="w-5 h-5 text-amber-400" /> :
+                                                                            <Bell className="w-5 h-5 text-blue-400" />}
                                                                 </div>
                                                                 <div>
                                                                     <div className="font-medium text-white">{anomaly.type.replace(/_/g, ' ')}</div>
@@ -2652,9 +2303,8 @@ const PCBManufacturing = () => {
                                                                 </div>
                                                             </div>
                                                             <div className="text-right">
-                                                                <div className={`text-xs px-2 py-0.5 rounded ${
-                                                                    anomaly.resolved ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'
-                                                                }`}>
+                                                                <div className={`text-xs px-2 py-0.5 rounded ${anomaly.resolved ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'
+                                                                    }`}>
                                                                     {anomaly.resolved ? 'Resolved' : 'Active'}
                                                                 </div>
                                                                 <div className="text-[10px] text-slate-500 mt-1">
@@ -2708,16 +2358,14 @@ const PCBManufacturing = () => {
                                             </div>
 
                                             {thermalResult && (
-                                                <div className={`p-3 rounded-lg border ${
-                                                    thermalResult.thermal_status === 'CRITICAL' ? 'bg-red-900/30 border-red-500/30' :
+                                                <div className={`p-3 rounded-lg border ${thermalResult.thermal_status === 'CRITICAL' ? 'bg-red-900/30 border-red-500/30' :
                                                     thermalResult.thermal_status === 'WARNING' ? 'bg-amber-900/30 border-amber-500/30' :
-                                                    'bg-emerald-900/30 border-emerald-500/30'
-                                                }`}>
-                                                    <div className={`text-sm font-bold ${
-                                                        thermalResult.thermal_status === 'CRITICAL' ? 'text-red-300' :
-                                                        thermalResult.thermal_status === 'WARNING' ? 'text-amber-300' :
-                                                        'text-emerald-300'
+                                                        'bg-emerald-900/30 border-emerald-500/30'
                                                     }`}>
+                                                    <div className={`text-sm font-bold ${thermalResult.thermal_status === 'CRITICAL' ? 'text-red-300' :
+                                                        thermalResult.thermal_status === 'WARNING' ? 'text-amber-300' :
+                                                            'text-emerald-300'
+                                                        }`}>
                                                         {thermalResult.thermal_status}
                                                     </div>
                                                     <div className="text-xs text-slate-300 mt-1">{thermalResult.diagnosis}</div>
@@ -2777,14 +2425,13 @@ const PCBManufacturing = () => {
                                                 </div>
                                             </div>
 
-                                            <div className={`p-2 rounded-lg text-center ${
-                                                toolLife.action === 'CHANGE_TOOL_NOW' ? 'bg-red-900/30 text-red-300' : 'bg-emerald-900/30 text-emerald-300'
-                                            }`}>
+                                            <div className={`p-2 rounded-lg text-center ${toolLife.action === 'CHANGE_TOOL_NOW' ? 'bg-red-900/30 text-red-300' : 'bg-emerald-900/30 text-emerald-300'
+                                                }`}>
                                                 <div className="text-xs font-bold">{toolLife.action}</div>
                                             </div>
 
                                             <div className="text-xs text-slate-400">
-                                                RUL: <span className="text-white font-mono">{toolLife.rul_hits}</span> hits
+                                                RUL: <span className="text-white font-mono">{toolLife.rul_hits}</span> welds
                                             </div>
                                         </div>
                                     )}
@@ -2820,16 +2467,6 @@ const PCBManufacturing = () => {
                                 )}
                             </div>
                         </div>
-                    </div>
-                )
-            }
-
-            {/* --- PHASE 5: COMPLIANCE --- */}
-            {
-                activePhase === 5 && (
-                    <div className="p-12 text-center text-slate-500">
-                        <ShieldCheck className="w-16 h-16 mx-auto mb-4 opacity-20" />
-                        <p>Compliance features integrated in background workflows.</p>
                     </div>
                 )
             }

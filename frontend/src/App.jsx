@@ -11,7 +11,7 @@ import FleetApp from './FleetApp';
 import VisualIntelligence from './components/VisualIntelligence';
 import PCBManufacturing from './components/PCBManufacturing';
 import HomePage from './components/HomePage';
-import AgentTracePanel from './components/AgentTracePanel';
+
 import { Microscope, Activity, Cpu, Monitor, Terminal, Home, Layers } from 'lucide-react';
 
 function App() {
@@ -23,7 +23,11 @@ function App() {
     const [agentTraces, setAgentTraces] = useState([]); // Real-time agent trace data
     const [isAgentActive, setIsAgentActive] = useState(false); // Agent processing indicator
 
-    // ADK Standard: Formal Agent State Object
+    // Phase 1: Fleet Data Bridge - Live fleet data from FleetMonitor
+    const [liveFleetData, setLiveFleetData] = useState(null);
+    const [proactiveAlerts, setProactiveAlerts] = useState([]); // Phase 4: Proactive alerts queue
+
+    // ADK Standard: Formal Agent State Object with Fleet Context
     const agentState = {
         session_id: "demo-session-001",
         workspace: {
@@ -34,7 +38,18 @@ function App() {
         context: {
             // Grounding Data
             log_analysis: logResult,
-            telemetry: agingMetrics
+            telemetry: agingMetrics,
+            // Phase 1: Live Fleet Data for Agent Awareness
+            fleet: liveFleetData ? {
+                health: liveFleetData.data?.fleet_metrics?.avg_health,
+                thermal_spread: liveFleetData.data?.fleet_metrics?.thermal_spread,
+                critical_count: liveFleetData.data?.red_list?.length,
+                active_packs: liveFleetData.data?.fleet_metrics?.active_packs,
+                red_list: liveFleetData.data?.red_list,
+                commander_report: liveFleetData.commander_report,
+                vehicles: liveFleetData.vehicles,
+                drivers: liveFleetData.drivers
+            } : null
         }
     };
 
@@ -52,6 +67,21 @@ function App() {
         // Safety Actions
         if (action === 'trigger_red_alert') setAlertLevel('critical');
         if (action === 'clear_alert') setAlertLevel('normal');
+    };
+
+    // Phase 4: Handle proactive alerts from FleetMonitor
+    const handleProactiveAlert = (alert) => {
+        // Deduplicate alerts by pack_id within last 30 seconds
+        setProactiveAlerts(prev => {
+            const thirtySecondsAgo = Date.now() - 30000;
+            const filtered = prev.filter(a =>
+                new Date(a.timestamp).getTime() > thirtySecondsAgo
+            );
+            // Check if this pack already has an alert
+            const exists = filtered.some(a => a.pack_id === alert.pack_id);
+            if (exists) return filtered;
+            return [...filtered, alert];
+        });
     };
 
     return (
@@ -95,8 +125,6 @@ function App() {
             {/* Split Screen Layout */}
             <div className="flex-1 flex overflow-hidden relative">
 
-                {/* AGENT TRACE PANEL */}
-                <AgentTracePanel traces={agentTraces} isActive={isAgentActive} />
 
                 {/* FLOATING AGENT (Result of UI Redesign) */}
                 {/* We pass the state setter down so ChatInterface can control it, but App controls the layout */}
@@ -107,6 +135,10 @@ function App() {
                     setExternalOpenState={setIsAgentOpen}
                     onTraceUpdate={setAgentTraces}
                     onActivityChange={setIsAgentActive}
+                    activeWorkspace={activeWorkspace}
+                    liveFleetData={liveFleetData}
+                    proactiveAlerts={proactiveAlerts}
+                    onClearAlert={(alertId) => setProactiveAlerts(prev => prev.filter(a => a.id !== alertId))}
                 />
 
                 {/* MAIN WORKSPACE */}
@@ -163,7 +195,10 @@ function App() {
                         {activeWorkspace === 'fleet' && (
                             <div className="animate-in fade-in zoom-in-95 duration-500 h-full flex flex-col">
                                 <div className="flex-1 h-full -m-6">
-                                    <FleetApp />
+                                    <FleetApp
+                                        onFleetDataUpdate={setLiveFleetData}
+                                        onProactiveAlert={handleProactiveAlert}
+                                    />
                                 </div>
 
                             </div>
